@@ -14,7 +14,18 @@ replay pov -> Starts a replay, e.g. the last recording, in Point of View
   
 replay file 0 -> Starts a replay of a specific file, by default 0 is the most recent, 1 is the second most recent, etc.
 
-replay pause -> Pause the current replay, type replay or r to restart
+replay pause/p -> Pause the current replay, type replay or r to restart
+
+replay stop/s -> Stop the current replay
+
+forcerecord or fr -> Force recording even if its not 1v1 for exemple in practice, wont stop until you type forcerecord or fr again (if you switch map, a different record will be created, but wont stop)
+
+
+
+You can find the folder ReplayMod in your CrabGame folder, inside a folder config, you can change somes parameters for the mod, for exemple recordFPS, max numb of files etc...
+
+
+Enjoy :)
 
 
   
