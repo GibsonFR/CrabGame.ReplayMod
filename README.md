@@ -7,7 +7,7 @@ replay or r -> Starts a replay, by default the last recording
   You can control speed by adding an argument after, for exemple : r 10
   
 replay cinematic/cine/c -> Starts a replay, e.g. the last recording, in cinematic view 
-  You can control speed by adding an argument after pov, for exemple : replay c 0,5 (, and . work)
+  You can control speed by adding an argument after cinematic, for exemple : replay c 0,5 (, and . work)
   
 replay pov -> Starts a replay, e.g. the last recording, in Point of View
   You can control speed by adding an argument after pov, for exemple : replay pov 2 
