@@ -1,9 +1,0 @@
-recordFPS=150
-maxReplayFiles=10
-posSmoothness=0,1
-rotSmoothness=0,1
-distFromPlayer=0,8
-cinematicCloseHeight=1
-cinematicFarHeight=12
-version=2
-minimapSize=10
