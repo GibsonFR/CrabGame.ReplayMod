@@ -1423,17 +1423,6 @@ namespace ReplayMod
                 chatBox = ChatBox.Instance;
                 agentInventory = PlayerInventory.Instance;
                 //debugChat();
-                string dossier = "C:/Program Files (x86)/Steam/steamapps/common/Crab Game/Crab Game_Data/Meshes/"; // Chemin du dossier contenant les fichiers .txt
-                string[] fichiers = Directory.GetFiles(dossier, "*.obj"); // Récupère tous les fichiers .txt du dossier
-
-                foreach (string fichier in fichiers)
-                {
-                    string contenu = File.ReadAllText(fichier); // Lit le contenu du fichier
-
-                    contenu = contenu.Replace(",", "."); // Remplace toutes les virgules par des points
-
-                    File.WriteAllText(fichier, contenu); // Réécrit le contenu modifié dans le fichier
-                }
             }
         }
 
