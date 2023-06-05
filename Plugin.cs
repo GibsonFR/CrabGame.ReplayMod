@@ -20,7 +20,7 @@ using System.IO.Compression;
 
 namespace ReplayMod
 {
-    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.3")]
+    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.4")]
     public class Plugin : BasePlugin
     {
         private static Il2CppSystem.Collections.Generic.Dictionary<ulong, PlayerManager> activePlayers = null;
