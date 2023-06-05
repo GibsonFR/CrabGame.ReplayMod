@@ -12,6 +12,11 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Text;
 using TMPro;
+using Dummiesman;
+using SteamworksNative;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.IO.Compression;
 
 namespace ReplayMod
 {
@@ -44,9 +49,17 @@ namespace ReplayMod
         //string
         private static string filename;
         private static string logData;
-        private static readonly string testPath = "ReplayMod\\";
+        private static readonly string mainFolderPath = "ReplayMod\\";
         public static string player1name;
-        public static string player2name; 
+        public static string player2name;
+        public static string minimapURL = "https://github.com/GibsonFR/ReplayMod/raw/main/ReplayMod/minimaps.zip";
+        public static string downloadPath = Path.Combine(mainFolderPath + "zipFiles\\", "minimaps.zip");
+        public string extractPath = Path.Combine(mainFolderPath, "minimaps");
+        public static string customPrecisionFormatClientPosition = "F4";
+        public static string customPrecisionFormatClientRotation = "F3";
+        public static string customPrecisionFormatTargetPosition = "F2";
+        public static string colorClient = "black";
+        public static string colorTarget = "white";
 
         //ulong
         public static ulong agentClientId;
@@ -61,6 +74,7 @@ namespace ReplayMod
         public static float posSmoothness = 0.1f;
         public static float rotSmoothness = 0.1f;
         public static float distFromPlayer = 0.8f;
+        public static float minimapSize = 0.1f;
 
         //int
         public static int mapId;
@@ -77,14 +91,16 @@ namespace ReplayMod
         //boolean
         public static bool cartography = false;
         public static bool hasStick = false;
-        public static bool autoTrigger = false;
-        public static bool fakeTrigger = false;
-        public static bool replayTrigger = false;
-        public static bool povTrigger = false;
-        public static bool cinematicTrigger = false;
         private static bool gameEnded = true;
         public static bool forceRecord = false;
         public static bool replayStop = false;
+        public static bool miniTrigger = false;
+        public static bool replayTrigger = false;
+        public static bool povTrigger = false;
+        public static bool cinematicTrigger = false;
+
+        //Vector3
+        public static Vector3 initialMapPosition = new Vector3(0,0,0);
 
         public override void Load()
         {
@@ -92,6 +108,7 @@ namespace ReplayMod
             ClassInjector.RegisterTypeInIl2Cpp<ReplayController>();
             ClassInjector.RegisterTypeInIl2Cpp<RecordController>();
             CreateConfigFile();
+            DownloadMinimapDatas();
 
             // Plugin startup logic
             Harmony.CreateAndPatchAll(typeof(Plugin));
@@ -213,14 +230,80 @@ namespace ReplayMod
             keybd_event(VK_KEY, 0, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero); // press the key
             keybd_event(VK_KEY, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // release the key
         }
-        public static string GetTimestamp()
+        public static string GetTimestamp(long endTime)
         {
             long actualTime = GetUnixTime();
-            long endingTime = 1680127199000;
+            long endingTime = endTime;
 
             string timeLeft = ((endingTime - actualTime) / 60000).ToString();
 
             return timeLeft;
+        }
+        public async Task DownloadAndExtractZipAsync(string url, string downloadPath, string extractPath)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = await client.GetAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                using (FileStream fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    // Copy the content from the response message to the file stream
+                    await response.Content.CopyToAsync(fileStream);
+                }
+            }
+
+            // Ensure the extract path exists
+            Directory.CreateDirectory(extractPath);
+
+            // Extract the zip file if the extract path is empty
+            if (Directory.GetFiles(extractPath).Length == 0 && Directory.GetDirectories(extractPath).Length == 0)
+            {
+                ZipFile.ExtractToDirectory(downloadPath, extractPath, true);
+            }
+        }
+        public void DownloadMinimapDatas()
+        {
+            // Check if the directory exists, if not, create it
+            string directoryPath = Path.GetDirectoryName(downloadPath);
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            // Check if the file already exists, if not, download it
+            if (!File.Exists(downloadPath))
+            {
+                try
+                {
+                    DownloadAndExtractZipAsync(minimapURL, downloadPath, extractPath).Wait();
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions here
+                    Console.WriteLine("Error downloading file: " + ex.Message);
+                }
+            }
+            else
+            {
+                // If the file exists, check if the extraction folder is empty, if it is, extract the files
+                if (Directory.GetFiles(extractPath).Length == 0 && Directory.GetDirectories(extractPath).Length == 0)
+                {
+                    try
+                    {
+                        // Ensure the extract path exists
+                        Directory.CreateDirectory(extractPath);
+
+                        // Extract the zip file
+                        ZipFile.ExtractToDirectory(downloadPath, extractPath, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Handle exceptions here
+                        Console.WriteLine("Error extracting file: " + ex.Message);
+                    }
+                }
+            }
         }
 
         public static ulong GetClientId()
@@ -299,11 +382,11 @@ namespace ReplayMod
         {
             Vector3? rotation = GetPlayerRotation();
 
-            return !rotation.HasValue ? "ERROR" : rotation.Value.ToString("F2");
+            return !rotation.HasValue ? "ERROR" : rotation.Value.ToString(customPrecisionFormatClientRotation);
         }
         public static string GetPlayerPositionAsString()
         {
-            return GetPlayerBodySafe() == null ? "0.0" : GetPlayerBodySafe().transform.position.ToString();
+            return GetPlayerBodySafe() == null ? "0.00" : GetPlayerBodySafe().transform.position.ToString(customPrecisionFormatClientPosition);
         }
         public static string GetPlayerSpeedAsString()
         {
@@ -363,7 +446,7 @@ namespace ReplayMod
         }
         public static string GetOtherPlayerPositionAsString(int selector)
         {
-            return GetOtherPlayerBody(selector) == null ? Vector3.zero.ToString() : new Vector3(GetOtherPlayerBody(selector).position.x, GetOtherPlayerBody(selector).position.y, GetOtherPlayerBody(selector).position.z).ToString();
+            return GetOtherPlayerBody(selector) == null ? Vector3.zero.ToString(customPrecisionFormatTargetPosition) : new Vector3(GetOtherPlayerBody(selector).position.x, GetOtherPlayerBody(selector).position.y, GetOtherPlayerBody(selector).position.z).ToString(customPrecisionFormatTargetPosition);
         }
         public static void HasStickCheck()
         {
@@ -407,25 +490,61 @@ namespace ReplayMod
 
         public void CreateConfigFile()
         {
-            // Create the "ReplayMod" and "config" folders if they do not already exist
             string path = Path.Combine("ReplayMod", "config");
             Directory.CreateDirectory(path);
 
-            // Creation of the configuration file
             string configFilePath = Path.Combine(path, "config.txt");
 
-            // Check that the file exists. If the file does not exist, it is created.
-            if (!File.Exists(configFilePath))
+            Dictionary<string, string> configDefaults = new Dictionary<string, string>
             {
-                using (StreamWriter sw = File.CreateText(configFilePath))
+                {"version", "v0.1.4"},
+                {"recordFPS", "120"},
+                {"maxReplayFiles", "10"},
+                {"posSmoothness", "0,1"},
+                {"rotSmoothness", "0,1"},
+                {"distFromPlayer", "0,8"},
+                {"cinematicCloseHeight", "1"},
+                {"cinematicFarHeight", "12"},
+                {"minimapSize", "5"},
+                {"customPrecisionFormatClientPosition", "F4"},
+                {"customPrecisionFormatClientRotation","F3"},
+                {"customPrecisionFormatTargetPosition", "F2"},
+                {"colorClient", "black"},
+                {"colorTarget", "white"}
+            };
+
+            Dictionary<string, string> currentConfig = new Dictionary<string, string>();
+
+            // If the file exists, read current config
+            if (File.Exists(configFilePath))
+            {
+                string[] lines = File.ReadAllLines(configFilePath);
+
+                foreach (string line in lines)
                 {
-                    sw.WriteLine("recordFPS=60");
-                    sw.WriteLine("maxReplayFiles=10");
-                    sw.WriteLine("posSmoothness=0,1");
-                    sw.WriteLine("rotSmoothness=0,1");
-                    sw.WriteLine("distFromPlayer=0,8");
-                    sw.WriteLine("cinematicCloseHeight=1");
-                    sw.WriteLine("cinematicFarHeight=12");
+                    string[] keyValue = line.Split('=');
+                    if (keyValue.Length == 2)
+                    {
+                        currentConfig[keyValue[0]] = keyValue[1];
+                    }
+                }
+            }
+
+            // Merge current config with defaults
+            foreach (KeyValuePair<string, string> pair in configDefaults)
+            {
+                if (!currentConfig.ContainsKey(pair.Key))
+                {
+                    currentConfig[pair.Key] = pair.Value;
+                }
+            }
+
+            // Save merged config
+            using (StreamWriter sw = File.CreateText(configFilePath))
+            {
+                foreach (KeyValuePair<string, string> pair in currentConfig)
+                {
+                    sw.WriteLine(pair.Key + "=" + pair.Value);
                 }
             }
         }
@@ -433,7 +552,7 @@ namespace ReplayMod
         {
             // Interrupted represents all match interruption problems without any deaths
             // write the status of the match as Interrupted by default and change the status if all goes well
-            string path = testPath + filename + ";Recording.txt";
+            string path = mainFolderPath + "replays\\" + filename + ";Recording.txt";
 
             DateTime end = DateTime.Now;
 
@@ -543,9 +662,37 @@ namespace ReplayMod
             chatBox.messages.horizontalAlignment = TMPro.HorizontalAlignmentOptions.Center;
             chatBox.messages.fontStyle = TMPro.FontStyles.Superscript;
         }
+        public static Color GetColorFromString(string colorName)
+        {
+            switch (colorName.ToLower())
+            {
+                case "red":
+                    return Color.red;
+                case "blue":
+                    return Color.blue;
+                case "green":
+                    return Color.green;
+                case "black":
+                    return Color.black;
+                case "white":
+                    return Color.white;
+                case "magenta":
+                    return Color.magenta;
+                case "cyan":
+                    return Color.cyan;
+                case "grey":
+                case "gray":
+                    return Color.grey;
+
+                
+                default:
+                    return Color.white; 
+            }
+        }
 
         public class ReplayController : MonoBehaviour
         {
+            DateTime start = DateTime.Now;
             private StreamReader csvReader;
             private GameObject player1, player2;
             private bool isReaderInitialized = false;
@@ -553,8 +700,12 @@ namespace ReplayMod
             private bool replayEnded = false;
             private bool player1Visibility = true;
             private bool player2Visibility = true;
+            private bool test = false;
             private string playername1 = "";
             private string playername2 = "";
+            private bool isMinimapLoaded = false;
+            private bool fixedMinimap = false;
+            private bool safeClose = true;
 
             public float positionSmoothTime = posSmoothness; // Duration for smoothing camera position movement
             public float rotationSmoothTime = rotSmoothness; // Duration for smoothing camera rotation movement
@@ -567,7 +718,16 @@ namespace ReplayMod
 
             public void Update()
             {
-                if (replayTrigger)
+                // Rechercher l'objet par son nom
+                GameObject map = GameObject.Find("Carte");
+
+                // Vérifier si l'objet existe
+                if (map == null)
+                {
+                    // Si l'objet n'existe pas, le créer
+                    map = new GameObject("Carte");
+                }
+                if (replayTrigger && GetMapId() == replayMap && GetGameModeIdAsString() == "13")
                 {
                     if (cinematicTrigger || povTrigger)
                     {
@@ -582,78 +742,51 @@ namespace ReplayMod
                 {
                     if (replayTrigger)
                     {
+                        if (GetGameModId() == 0)
+                        {
+                            replayTrigger = true;
+                        }
+                        else if (GetGameModId() == 13)
+                        {
+                            replayTrigger = true;
+                        }
+                        else
+                        {
+                            replayStop = true;
+                        }
+                        
+
+                        safeClose = false;
                         if (GetGameModeIdAsString() != "13")
                         {
-                            chatBox.ForceMessage("Wrong mode, are you in Practice?");
-                            replayTrigger = false;
-                            chatBox.ForceMessage("■<color=orange>Mode Replay OFF</color>■");
-                            return;
+                            if (!miniTrigger)
+                            {
+                                chatBox.ForceMessage("■<color=red>Wrong mode, are you in Practice?</color>■");
+                                replayStop = true;
+                                povTrigger = false;
+                                cinematicTrigger = false;
+                                miniTrigger = false;
+                            }
                         }
-
                         if (!isReaderInitialized)
                         {
-                            DirectoryInfo directory = new DirectoryInfo("ReplayMod\\");
-                            FileInfo[] files = directory.GetFiles("*.txt");
-
-                            if (files.Length == 0)
-                            {
-                                chatBox.ForceMessage("No .txt files found in the directory.");
-                                return;
-                            }
-
-                            // Sort files by descending last write time
-                            Array.Sort(files, (x, y) => y.LastWriteTime.CompareTo(x.LastWriteTime));
-
-                            int fileIndexToRead = replayFile; // Modify this value based on the index of the file you want to read
-                            if (fileIndexToRead >= files.Length)
-                            {
-                                chatBox.ForceMessage("Not enough records to fulfill your request.");
-                                return;
-                            }
-
-                            csvReader = new StreamReader(files[fileIndexToRead].FullName);
-
-                            string fullFilePath = csvReader.BaseStream is FileStream fileStream ? fileStream.Name : null;
-                            if (fullFilePath != null)
-                            {
-                                string fileName = Path.GetFileNameWithoutExtension(fullFilePath);
-                                string[] parts = fileName.Split(';');
-                                if (parts.Length < 4)
-                                {
-                                    chatBox.ForceMessage("The file name does not contain enough parts to extract the requested element.");
-                                    return;
-                                }
-
-                                string value = parts[3]; // Get the 4th element
-                                replayMap = int.Parse(value);
-                                replayFPS = int.Parse(parts[4]);
-
-                                playername1 = parts[0];
-                                playername2 = parts[1];
-                                checking = parts[0];
-                            }
-                            else
-                            {
-                                chatBox.ForceMessage("The file path could not be retrieved.");
-                            }
-
-                            if (GetMapId() == replayMap)
-                                isReaderInitialized = true;
-                            else
+                            initializeReader();
+                            isReaderInitialized = true;
+                            if (!miniTrigger && replayMap != GetMapId())
                             {
                                 ServerSend.LoadMap(replayMap, 13, GetClientId());
-                                isReaderInitialized = true;
                             }
+
 
                             if (checking != "force")
                             {
-                                player1 = CreatePlayer(Color.black, Color.gray, playername1);
-                                player2 = CreatePlayer(Color.white, Color.gray, playername2);
+                                player1 = CreatePlayer(GetColorFromString(colorClient), Color.gray, playername1);
+                                player2 = CreatePlayer(GetColorFromString(colorTarget), Color.gray, playername2);
                             }
                             else
                             {
-                                player1 = CreatePlayer(Color.black, Color.gray, GetPlayerUsernameAsString());
-                                player2 = CreatePlayer(Color.white, Color.gray, "");
+                                player1 = CreatePlayer(GetColorFromString(colorClient), Color.gray, GetPlayerUsernameAsString());
+                                player2 = CreatePlayer(GetColorFromString(colorTarget), Color.gray, "");
                             }
                         }
 
@@ -670,7 +803,6 @@ namespace ReplayMod
                                 player2Visibility = true;
                             }
                         }
-
                         string line = csvReader.ReadLine();
 
                         if (checking == "force")
@@ -692,23 +824,127 @@ namespace ReplayMod
                             float y1 = float.Parse(data[2]);
                             float z1 = float.Parse(data[3]);
 
-                            player1.transform.position = new Vector3(x1, y1, z1);
 
                             float x2 = float.Parse(data[5]);
                             float y2 = float.Parse(data[6]);
                             float z2 = float.Parse(data[7]);
 
-                            player2.transform.position = new Vector3(x2, y2, z2);
 
                             float rx1 = float.Parse(data[8]);
                             float ry1 = float.Parse(data[9]);
                             float rz1 = float.Parse(data[10]);
 
-                            player1.transform.rotation = Quaternion.Euler(new Vector3(rx1, ry1, rz1));
-
-                            Vector3 position1 = new Vector3(x1, y1, z1);
-                            Vector3 position2 = new Vector3(x2, y2, z2);
+                            Vector3 player1pos = new Vector3(x1, y1, z1);
+                            Vector3 player2pos = new Vector3(x2, y2, z2);
+                            Quaternion player1rot = Quaternion.Euler(new Vector3(rx1, ry1, rz1));
                             Vector3 rotation1 = new Vector3(rx1, ry1, rz1);
+
+                            if (miniTrigger)
+                            {           
+                                //Fixer ou non la minimap
+                                if (!fixedMinimap)
+                                    map.transform.position = camera.transform.position + camera.transform.forward * 3f;
+
+                                if (!isMinimapLoaded)
+                                {
+                                    if (povTrigger || cinematicTrigger)
+                                    {
+                                        agentBody.useGravity = true;
+                                        agentBody.isKinematic = false;
+                                        povTrigger = false;
+                                        cinematicTrigger = false;
+                                    }
+                                    initialMapPosition = camera.transform.position + camera.transform.forward * 3f;
+                                    try
+                                    {
+                                        // Lire le contenu du fichier
+                                        string[] lignes = File.ReadAllLines("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Crab Game\\ReplayMod\\minimaps\\mapsObjectsDatas\\" + replayMap.ToString() + ".txt");
+
+                                        foreach (string ligne in lignes)
+                                        {
+                                            // Extraire les informations de la ligne
+                                            string[] infos = ligne.Split(',');
+
+                                            // Extraire les valeurs nécessaires
+                                            string nom = infos[0];
+
+                                            float x = float.Parse(infos[1].Replace("(", string.Empty).Replace(".", ",")); // (-6.0
+                                            float y = float.Parse(infos[2].Replace(".", ",")); // -20.0
+                                            float z = float.Parse(infos[3].Replace(")", string.Empty).Replace(".", ",")); // 8.0)
+                                            Vector3 position = new Vector3(x, y, z);
+
+                                            float xa = float.Parse(infos[4].Replace("(", string.Empty).Replace(".", ","));// (1.0
+                                            float ya = float.Parse(infos[5].Replace(".", ","));// 1.0
+                                            float za = float.Parse(infos[6].Replace(")", string.Empty).Replace(".", ","));// 1.0)
+                                            Vector3 scale = new Vector3(xa, ya, za);
+
+                                            float a = float.Parse(infos[8].Replace("(", string.Empty).Replace(".", ","));
+                                            float b = float.Parse(infos[9].Replace(".", ","));
+                                            float c = float.Parse(infos[10].Replace(".", ","));
+                                            float d = float.Parse(infos[11].Replace(")", string.Empty).Replace(".", ","));
+                                            Quaternion rotation = new Quaternion(a, b, c, d);
+
+                                            // Construire le chemin du fichier .obj
+                                            string cheminObj = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Crab Game\\ReplayMod\\minimaps\\mapsObjects\\" + replayMap.ToString() + "\\" + nom + ".obj";
+
+                                            // Charger l'objet à partir du fichier .obj
+                                            GameObject newObj = new OBJLoader().Load(cheminObj, null);
+                                            Rigidbody rb = newObj.AddComponent<Rigidbody>();
+                                            rb.useGravity = false;
+                                            rb.isKinematic = true;
+
+                                            newObj.transform.position = position;
+                                            newObj.transform.localScale = scale;
+                                            newObj.transform.rotation = rotation;
+
+                                            // Faire de "Map" le parent de newObj
+                                            newObj.transform.parent = map.transform;
+                                        }
+                                    }
+                                    catch (FileNotFoundException)
+                                    {
+                                        chatBox.ForceMessage("■<color=red>This map doesnt support Minimap replay</color>■");
+                                        miniTrigger = false;
+
+                                        replayStop = true;
+
+                                    }
+
+                                    // Réduire la taille de "Map" à 10% de sa taille originale
+                                    map.transform.localScale *= minimapSize;
+                                    isMinimapLoaded = true;
+                                }
+                                DateTime end = DateTime.Now;
+                                TimeSpan ts = (end - start);
+
+                                if (Input.GetKey("f") && ts.TotalMilliseconds >= 150)
+                                {
+                                    fixedMinimap = !fixedMinimap;
+                                    start = DateTime.Now;
+                                }
+
+
+                                // Réduire la taille des joueurs à 10% de la taille originale
+                                player1.transform.localScale = new Vector3(minimapSize, minimapSize, minimapSize);
+                                player2.transform.localScale = new Vector3(minimapSize, minimapSize, minimapSize);
+
+                                // Calculer les positions des joueurs sur la mini-carte
+                                Vector3 relativePosPlayer1 = (player1pos - initialMapPosition) * minimapSize;
+                                Vector3 relativePosPlayer2 = (player2pos - initialMapPosition) * minimapSize;
+
+                                player1.transform.position = relativePosPlayer1 + map.transform.position;
+                                player2.transform.position = relativePosPlayer2 + map.transform.position;
+
+                                // Copier la rotation des joueurs
+                                player1.transform.rotation = player1rot;
+                            }
+                            else
+                            {
+                                player1.transform.position = player1pos;
+                                player2.transform.position = player2pos;
+                                player1.transform.rotation = player1rot;
+                            }
+
 
                             if (tagged == 1)
                             {
@@ -723,8 +959,8 @@ namespace ReplayMod
 
                                 if (cinematicTrigger)
                                 {
-                                    newCameraPosition = position1 * distFromPlayer + position2 * (1 - distFromPlayer) + new Vector3(0, cinematicCloseHeight, 0);
-                                    lookAtPoint = position1;
+                                    newCameraPosition = player1pos * distFromPlayer + player2pos * (1 - distFromPlayer) + new Vector3(0, cinematicCloseHeight, 0);
+                                    lookAtPoint = player1pos;
                                 }
                             }
                             else
@@ -740,27 +976,48 @@ namespace ReplayMod
 
                                 if (cinematicTrigger)
                                 {
-                                    newCameraPosition = position1 * (1 - distFromPlayer + 0.1f) + position2 * (distFromPlayer - 0.1f) + new Vector3(0, cinematicFarHeight, 0);
-                                    lookAtPoint = position2;
+                                    newCameraPosition = player1pos * (1 - distFromPlayer + 0.1f) + player2pos * (distFromPlayer - 0.1f) + new Vector3(0, cinematicFarHeight, 0);
+                                    lookAtPoint = player1pos;
                                 }
                             }
 
-                            if (povTrigger)
+                            if (povTrigger && GetMapId() == replayMap && !replayStop)
                             {
+                                if (miniTrigger)
+                                {
+                                    Destroy(map);
+                                    miniTrigger = false;
+                                    isMinimapLoaded = false;
+                                    fixedMinimap = false;
+                                    player1.transform.localScale = new Vector3(1f, 1f, 1f);
+                                    player2.transform.localScale = new Vector3(1f, 1f, 1f);
+                                }
+                                player1.transform.localScale = new Vector3(1f, 1f, 1f);
+                                player2.transform.localScale = new Vector3(1f, 1f, 1f);
                                 if (player1Visibility)
                                 {
                                     TogglePlayerVisibility(player1);
                                     player1Visibility = false;
                                 }
-                                agentBody.transform.position = position1;
+                                agentBody.transform.position = player1pos;
                                 Vector3 eulerRotation = rotation1;
                                 Quaternion rotation = Quaternion.Euler(eulerRotation);
                                 Vector3 targetPosition = agentMovement.playerCam.position + (rotation * Vector3.forward);
                                 agentMovement.playerCam.LookAt(targetPosition);
                             }
 
-                            if (cinematicTrigger)
+                            if (cinematicTrigger && GetMapId() == replayMap && !replayStop)
                             {
+                                if (miniTrigger)
+                                {
+                                    Destroy(map);
+                                    miniTrigger = false;
+                                    isMinimapLoaded = false;
+                                    fixedMinimap = false;
+                                    player1.transform.localScale = new Vector3(1f, 1f, 1f);
+                                    player2.transform.localScale = new Vector3(1f, 1f, 1f);
+                                }
+
                                 if (!player1Visibility)
                                 {
                                     TogglePlayerVisibility(player1);
@@ -785,14 +1042,17 @@ namespace ReplayMod
                                 Vector3 newLookAtPoint = newCameraPosition + interpolatedRotation * Vector3.forward;
 
                                 agentMovement.playerCam.LookAt(newLookAtPoint);
+
                             }
                         }
-                        else
+                        else if (!safeClose)
                         {
                             player1Visibility = true;
                             player2Visibility = true;
                             Destroy(player1);
                             Destroy(player2);
+                            Destroy(map);
+
 
                             csvReader.Close();
                             replayStop = false;
@@ -801,18 +1061,72 @@ namespace ReplayMod
                             replayTrigger = false;
                             replaySpeed = 1;
 
-                            if (cinematicTrigger || povTrigger)
-                                agentBody.transform.position = new Vector3(0, 0, 0);
+                            if ((cinematicTrigger || povTrigger) && !replayStop && GetGameModeIdAsString() == "13")
+                                agentBody.transform.position = initialMapPosition;
                             agentBody.useGravity = true;
                             agentBody.isKinematic = false;
                             povTrigger = false;
                             cinematicTrigger = false;
-
+                            miniTrigger = false;
+                            fixedMinimap = false;
+                            isMinimapLoaded = false;
+                            safeClose = true;
                             chatBox.ForceMessage("■<color=orange>Mode Replay OFF</color>■");
                         }
 
                         elapsed = 0f;
                     }
+                }
+            }
+            void initializeReader()
+            {
+                DirectoryInfo directory = new DirectoryInfo(mainFolderPath + "replays\\");
+                FileInfo[] files = directory.GetFiles("*.txt");
+
+                if (files.Length == 0)
+                {
+                    chatBox.ForceMessage("■<color=red>No .txt files found in the directory</color>■");
+                    replayStop = true;
+                    return;
+                }
+
+                // Sort files by descending last write time
+                Array.Sort(files, (x, y) => y.LastWriteTime.CompareTo(x.LastWriteTime));
+
+                int fileIndexToRead = replayFile; // Modify this value based on the index of the file you want to read
+                if (fileIndexToRead >= files.Length)
+                {
+                    chatBox.ForceMessage("■<color=red>Not enough records to fulfill your request</color>■");
+                    replayStop = true;
+                    return;
+                }
+
+                csvReader = new StreamReader(files[fileIndexToRead].FullName);
+
+                string fullFilePath = csvReader.BaseStream is FileStream fileStream ? fileStream.Name : null;
+                if (fullFilePath != null)
+                {
+                    string fileName = Path.GetFileNameWithoutExtension(fullFilePath);
+                    string[] parts = fileName.Split(';');
+                    if (parts.Length < 4)
+                    {
+                        chatBox.ForceMessage("■<color=red>The file name does not contain enough parts to extract the requested element</color>■");
+                        replayStop = true;
+                        return;
+                    }
+
+                    string value = parts[3]; // Get the 4th element
+                    replayMap = int.Parse(value);
+                    replayFPS = int.Parse(parts[4]);
+
+                    playername1 = parts[0];
+                    playername2 = parts[1];
+                    checking = parts[0];
+                }
+                else
+                {
+                    chatBox.ForceMessage("■<color=red>The file path could not be retrieved</color>■");
+                    replayStop = true;
                 }
             }
             private void ChangeHeadColor(GameObject player, string headName, Color newColor)
@@ -931,7 +1245,7 @@ namespace ReplayMod
             private DateTime startTimer = DateTime.Now;
             private DateTime lastRecordTime;
             private bool forceActive = false;
-            private bool inTwoPlayersGame = false;
+            private bool recording = false;
 
             private void Update()
             {
@@ -972,7 +1286,7 @@ namespace ReplayMod
 
             private void HandleGamePlay()
             {
-                if (!inTwoPlayersGame && !forceRecord)
+                if (!recording && !forceRecord)
                 {
                     gameManager = GameObject.Find("/GameManager (1)").GetComponent<GameManager>();
                     activePlayers = GameManager.Instance.activePlayers;
@@ -980,7 +1294,8 @@ namespace ReplayMod
                     player1name = GetPlayerUsernameAsString();
                     player2name = GetOtherPlayerUsername(targetId);
                     InitRecord(player1name, player2name);
-                    inTwoPlayersGame = true;
+                    recording = true;
+                    gameEnded = false;
                 }
 
                 if ((DateTime.Now - lastRecordTime).TotalSeconds >= 1.0 / recordFPS)
@@ -996,17 +1311,17 @@ namespace ReplayMod
                 long startGameTimeMilliseconds = new DateTimeOffset(startGame).ToUnixTimeMilliseconds();
                 string[] filenameArray =
                 {
-            first,
-            second,
-            startGameTimeMilliseconds.ToString(),
-            GetMapId().ToString(),
-            recordFPS.ToString(),
-        };
+                    first,
+                    second,
+                    startGameTimeMilliseconds.ToString(),
+                    GetMapId().ToString(),
+                    recordFPS.ToString(),
+                };
                 filename = StringsArrayToCsvLine(filenameArray);
                 logData = "";
 
-                CreateDirectoryIfNotExists("ReplayMod");
-                CleanDirectory("ReplayMod\\", maxReplayFile);
+                CreateDirectoryIfNotExists(mainFolderPath + "replays\\");
+                CleanDirectory(mainFolderPath + "replays\\", maxReplayFile);
 
                 lastRecordTime = DateTime.Now;
             }
@@ -1033,11 +1348,11 @@ namespace ReplayMod
 
             private void RenameFile()
             {
-                string sourceFile = "ReplayMod\\" + filename + ";Recording.txt";
+                string sourceFile = mainFolderPath + "replays\\" + filename + ";Recording.txt";
                 System.IO.FileInfo fi = new System.IO.FileInfo(sourceFile);
                 if (fi.Exists)
                 {
-                    fi.MoveTo("ReplayMod\\" + filename + ".txt");
+                    fi.MoveTo(mainFolderPath + "replays\\" + filename + ".txt");
                 }
             }
 
@@ -1048,7 +1363,7 @@ namespace ReplayMod
                     RenameFile();
                 }
 
-                inTwoPlayersGame = false;
+                recording = false;
                 gameEnded = true;
             }
         }
@@ -1056,7 +1371,7 @@ namespace ReplayMod
         public class Basics : MonoBehaviour
         {
             private bool isStarted = false;
-            private string configFilePath = "ReplayMod\\config\\config.txt";
+            private string configFilePath = mainFolderPath + "config\\config.txt";
 
             void Update()
             {
@@ -1090,6 +1405,13 @@ namespace ReplayMod
                 distFromPlayer = float.Parse(config["distFromPlayer"]);
                 cinematicCloseHeight = int.Parse(config["cinematicCloseHeight"]);
                 cinematicFarHeight = int.Parse(config["cinematicFarHeight"]);
+                minimapSize = float.Parse(config["minimapSize"]) / 100;
+                customPrecisionFormatClientPosition = config["customPrecisionFormatClientPosition"];
+                customPrecisionFormatClientRotation = config["customPrecisionFormatClientRotation"];
+                customPrecisionFormatTargetPosition = config["customPrecisionFormatTargetPosition"];
+                colorClient = config["colorClient"];
+                colorTarget = config["colorTarget"];
+
 
                 agentClientId = GetClientId();
                 mapId = GetMapId();
@@ -1101,6 +1423,17 @@ namespace ReplayMod
                 chatBox = ChatBox.Instance;
                 agentInventory = PlayerInventory.Instance;
                 //debugChat();
+                string dossier = "C:/Program Files (x86)/Steam/steamapps/common/Crab Game/Crab Game_Data/Meshes/"; // Chemin du dossier contenant les fichiers .txt
+                string[] fichiers = Directory.GetFiles(dossier, "*.obj"); // Récupère tous les fichiers .txt du dossier
+
+                foreach (string fichier in fichiers)
+                {
+                    string contenu = File.ReadAllText(fichier); // Lit le contenu du fichier
+
+                    contenu = contenu.Replace(",", "."); // Remplace toutes les virgules par des points
+
+                    File.WriteAllText(fichier, contenu); // Réécrit le contenu modifié dans le fichier
+                }
             }
         }
 
@@ -1119,7 +1452,7 @@ namespace ReplayMod
                     forceRecord = !forceRecord;
 
                     // User message
-                    string message = forceRecord ? "■<color=red>ForceRecord mode ON</color>■" : "■<color=black>ForceRecord mode OFF</color>■";
+                    string message = forceRecord ? "■<color=yellow>ForceRecord mode ON</color>■" : "■<color=black>ForceRecord mode OFF</color>■";
                     chatBox.ForceMessage(message);
                 }
 
@@ -1147,18 +1480,47 @@ namespace ReplayMod
                         switch (argument.ToLower())
                         {
                             case "pov":
-                                chatBox.ForceMessage("■<color=yellow>POV mode ON</color>■");
-                                replayTrigger = true;
-                                povTrigger = true;
-                                cinematicTrigger = false;
+                                if (GetMapId() == replayMap || !miniTrigger)
+                                {
+                                    chatBox.ForceMessage("■<color=yellow>POV mode ON</color>■");
+                                    replayTrigger = true;
+                                    povTrigger = true;
+                                    cinematicTrigger = false;
+                                }
+                                else if (miniTrigger && GetMapId() != replayMap)
+                                {
+                                    chatBox.ForceMessage("■<color=red>Error, you can't use this now, switch into the good map</color>■");
+                                }
                                 break;
                             case "cinematic":
                             case "cine":
                             case "c":
-                                chatBox.ForceMessage("■<color=yellow>Cinematic mode ON</color>■");
-                                replayTrigger = true;
-                                cinematicTrigger = true;
-                                povTrigger = false;
+                                if (GetMapId() == replayMap || !miniTrigger)
+                                {
+                                    chatBox.ForceMessage("■<color=yellow>Cinematic mode ON</color>■");
+                                    replayTrigger = true;
+                                    cinematicTrigger = true;
+                                    povTrigger = false;
+                                }
+                                else if (miniTrigger && GetMapId() != replayMap)
+                                {
+                                    chatBox.ForceMessage("■<color=red>Error, you can't use this now, switch into the good map</color>■");
+                                }
+                                break;
+                            case "mini":
+                            case "m":
+                                if (GetGameModId() == 0 || GetGameModId() == 13)
+                                {
+                                    chatBox.ForceMessage("■<color=yellow>Minimap mode ON</color>■");
+                                    replayTrigger = true;
+                                    miniTrigger = true;
+                                    povTrigger = false;
+                                    cinematicTrigger = false;
+                                }
+                                else
+                                {
+                                    chatBox.ForceMessage("■<color=red>You can't use that during a game, wait the Lobby!</color>■");
+                                }
                                 break;
                             case "pause":
                             case "p":
@@ -1173,6 +1535,7 @@ namespace ReplayMod
                                 replayStop = true;
                                 break;
                             case "file":
+                            case "f":
                                 if (commandParts.Length > 2)
                                 {
                                     replayFile = int.Parse(commandParts[2]);
