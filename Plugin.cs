@@ -151,7 +151,6 @@ namespace ReplayMod
         public class RecordController : MonoBehaviour
         {
             private DateTime startTimer = DateTime.Now;
-            private DateTime lastRecordTime;
             private bool init = false;
 
             private void Update()
@@ -160,11 +159,12 @@ namespace ReplayMod
                 {
                     Variables.isForceRecord = false;
                     Variables.recording = false;
+                    Variables.lastRecordTime = DateTime.Now;
                     init = true;
                 }
                 if (Variables.forceRecord)
                 {
-                    RecordControllerFunctions.HandleForceRecord(lastRecordTime);
+                    RecordControllerFunctions.HandleForceRecord();
                 }
                 else if (Variables.isForceRecord)
                 {
@@ -174,7 +174,7 @@ namespace ReplayMod
 
                 if (Variables.clientObject != null && GameData.GetGameStateAsString() == "Playing")
                 {
-                    RecordControllerFunctions.HandleGamePlay(lastRecordTime);
+                    RecordControllerFunctions.HandleGamePlay();
                 }
                 else
                 {
