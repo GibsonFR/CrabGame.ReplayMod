@@ -9,7 +9,7 @@ namespace ReplayMod
     {
         public static Il2CppSystem.Collections.Generic.Dictionary<ulong, PlayerManager> activePlayers = null;
         public static Camera camera;
-        public static DateTime startGame, fixMapTimeStamp;
+        public static DateTime startGame, fixMapTimeStamp, lastRecordTime;
 
         //Manager
         public static GameManager gameManager;
