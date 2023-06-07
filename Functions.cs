@@ -445,6 +445,11 @@ namespace ReplayMod
                                 Variables.replayTrigger = true;
                                 Variables.povTrigger = true;
                                 Variables.cinematicTrigger = false;
+                                if (commandParts.Length > 2)
+                                {
+                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
+                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                }
                             }
                             else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
                             {
@@ -464,6 +469,11 @@ namespace ReplayMod
                                 Variables.replayTrigger = true;
                                 Variables.cinematicTrigger = true;
                                 Variables.povTrigger = false;
+                                if (commandParts.Length > 2)
+                                {
+                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
+                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                }
                             }
                             else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
                             {
@@ -484,6 +494,12 @@ namespace ReplayMod
                                 Variables.minimapTrigger = true;
                                 Variables.povTrigger = false;
                                 Variables.cinematicTrigger = false;
+                                if (commandParts.Length > 2)
+                                {
+                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
+                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                }
+
                             }
                             else
                             {
@@ -513,6 +529,7 @@ namespace ReplayMod
                         default:
                             if (commandParts.Length > 2)
                             {
+                                Variables.replayTrigger = true;
                                 Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
                                 Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
                             }
@@ -829,26 +846,28 @@ namespace ReplayMod
         }
         public static void ExtractData(string line)
         {
+            System.Globalization.CultureInfo cultureInfo = new System.Globalization.CultureInfo("fr-FR");
+
             string[] data = line.Split(';');
 
-            Variables.isClientCloneTagged = float.Parse(data[4]);
+            Variables.isClientCloneTagged = float.Parse(data[4], cultureInfo);
 
             Variables.clientClonePosition = new Vector3(
-                float.Parse(data[1]),
-                float.Parse(data[2]),
-                float.Parse(data[3])
+                float.Parse(data[1], cultureInfo),
+                float.Parse(data[2], cultureInfo),
+                float.Parse(data[3], cultureInfo)
             );
 
             Variables.otherPlayerClonePosition = new Vector3(
-                float.Parse(data[5]),
-                float.Parse(data[6]),
-                float.Parse(data[7])
+                float.Parse(data[5], cultureInfo),
+                float.Parse(data[6], cultureInfo),
+                float.Parse(data[7], cultureInfo)
             );
 
             Variables.clientCloneRotation = new Vector3(
-                float.Parse(data[8]),
-                float.Parse(data[9]),
-                float.Parse(data[10])
+                float.Parse(data[8], cultureInfo),
+                float.Parse(data[9], cultureInfo),
+                float.Parse(data[10], cultureInfo)
             );
 
             Variables.clientCloneQRotation = Quaternion.Euler(Variables.clientCloneRotation);
@@ -1196,22 +1215,22 @@ namespace ReplayMod
 
     public class RecordControllerFunctions
     {
-        public static void HandleForceRecord(DateTime lastRecordTime)
+        public static void HandleForceRecord()
         {
             if (!Variables.isForceRecord)
             {
-                InitRecord("force", "Record", lastRecordTime);
+                InitRecord("force", "Record");
                 Variables.isForceRecord = true;
             }
 
-            if ((DateTime.Now - lastRecordTime).TotalSeconds >= 1.0 / Variables.recordFPS)
+            if ((DateTime.Now - Variables.lastRecordTime).TotalSeconds >= 1.0 / Variables.recordFPS)
             {
                 Utility.LogAllData(Variables.replayFileName, Variables.startGame);
-                lastRecordTime = DateTime.Now;
+                Variables.lastRecordTime = DateTime.Now;
             }
         }
 
-        public static void HandleGamePlay(DateTime lastRecordTime)
+        public static void HandleGamePlay()
         {
             if (!Variables.recording && !Variables.forceRecord)
             {
@@ -1220,19 +1239,19 @@ namespace ReplayMod
                 Variables.clientPlayerId = MultiplayerData.FindEnemies();
                 Variables.clientName = ClientData.GetPlayerUsernameAsString();
                 Variables.otherPlayerName = MultiplayerData.GetOtherPlayerUsername(Variables.clientPlayerId);
-                InitRecord(Variables.clientName, Variables.otherPlayerName, lastRecordTime);
+                InitRecord(Variables.clientName, Variables.otherPlayerName);
                 Variables.recording = true;
                 Variables.gameEnded = false;
             }
 
-            if ((DateTime.Now - lastRecordTime).TotalSeconds >= 1.0 / Variables.recordFPS)
+            if ((DateTime.Now - Variables.lastRecordTime).TotalSeconds >= 1.0 / Variables.recordFPS)
             {
                 Utility.LogAllData(Variables.replayFileName, Variables.startGame);
-                lastRecordTime = DateTime.Now;
+                Variables.lastRecordTime = DateTime.Now;
             }
         }
 
-        public static void InitRecord(string first, string second, DateTime lastRecordTime)
+        public static void InitRecord(string first, string second)
         {
             Variables.startGame = DateTime.Now;
             long startGameTimeMilliseconds = new DateTimeOffset(Variables.startGame).ToUnixTimeMilliseconds();
@@ -1250,7 +1269,7 @@ namespace ReplayMod
             CreateDirectoryIfNotExists(Variables.mainFolderPath + "replays\\");
             CleanDirectory(Variables.mainFolderPath + "replays\\", Variables.maxReplayFile);
 
-            lastRecordTime = DateTime.Now;
+            Variables.lastRecordTime = DateTime.Now;
         }
 
         public static void CreateDirectoryIfNotExists(string directory)
