@@ -357,7 +357,7 @@ namespace ReplayMod
         }
         public static void PlayMenuSound()
         {
-            Variables.clientInventory.woshSfx.pitch = 200;
+            Variables.clientInventory.woshSfx.pitch = 5 * Variables.menuSpeed;
             Variables.clientInventory.woshSfx.Play();
         }
         public static void debugChat()
@@ -447,8 +447,11 @@ namespace ReplayMod
                                 Variables.cinematicTrigger = false;
                                 if (commandParts.Length > 2)
                                 {
-                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
-                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    if (float.TryParse(commandParts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out float newReplaySpeed))
+                                    {
+                                        Variables.replaySpeed = newReplaySpeed;
+                                        Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    }
                                 }
                             }
                             else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
@@ -471,8 +474,11 @@ namespace ReplayMod
                                 Variables.povTrigger = false;
                                 if (commandParts.Length > 2)
                                 {
-                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
-                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    if (float.TryParse(commandParts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out float newReplaySpeed))
+                                    {
+                                        Variables.replaySpeed = newReplaySpeed;
+                                        Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    }
                                 }
                             }
                             else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
@@ -496,8 +502,11 @@ namespace ReplayMod
                                 Variables.cinematicTrigger = false;
                                 if (commandParts.Length > 2)
                                 {
-                                    Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
-                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    if (float.TryParse(commandParts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out float newReplaySpeed))
+                                    {
+                                        Variables.replaySpeed = newReplaySpeed;
+                                        Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                    }
                                 }
 
                             }
@@ -522,16 +531,22 @@ namespace ReplayMod
                         case "f":
                             if (commandParts.Length > 2)
                             {
-                                Variables.replayFile = int.Parse(commandParts[2]);
-                                Variables.chatBox.ForceMessage("■<color=yellow>New replay file selected</color>■");
+                                if (int.TryParse(commandParts[2], out int newReplayFile))
+                                {
+                                    Variables.replayFile = newReplayFile;
+                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay file selected</color>■");
+                                }
                             }
                             break;
                         default:
                             if (commandParts.Length > 2)
                             {
+                                if (float.TryParse(commandParts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out float newReplaySpeed))
+                                {
+                                    Variables.replaySpeed = newReplaySpeed;
+                                    Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
+                                }
                                 Variables.replayTrigger = true;
-                                Variables.replaySpeed = float.Parse(commandParts[2].Replace(".", ","));
-                                Variables.chatBox.ForceMessage("■<color=yellow>New replay speed set</color>■");
                             }
                             break;
                     }
@@ -542,6 +557,10 @@ namespace ReplayMod
         {
             string[] lines = System.IO.File.ReadAllLines(Variables.configFilePath);
             Dictionary<string, string> config = new Dictionary<string, string>();
+            CultureInfo cultureInfo = new CultureInfo("fr-FR");
+            float resultFloat;
+            int resultInt;
+            bool parseSuccess;
 
             foreach (string line in lines)
             {
@@ -553,14 +572,31 @@ namespace ReplayMod
                     config[key] = value;
                 }
             }
-            Variables.maxReplayFile = int.Parse(config["maxReplayFiles"]) - 1;
-            Variables.recordFPS = int.Parse(config["recordFPS"]);
-            Variables.posSmoothness = float.Parse(config["posSmoothness"]);
-            Variables.rotSmoothness = float.Parse(config["rotSmoothness"]);
-            Variables.distFromPlayers = float.Parse(config["distFromPlayers"]);
-            Variables.cinematicCloseHeight = int.Parse(config["cinematicCloseHeight"]);
-            Variables.cinematicFarHeight = int.Parse(config["cinematicFarHeight"]);
-            Variables.minimapSize = float.Parse(config["minimapSize"]) / 100;
+
+            parseSuccess = int.TryParse(config["maxReplayFiles"], out resultInt);
+            Variables.maxReplayFile = parseSuccess ? resultInt - 1 : 0;
+
+            parseSuccess = int.TryParse(config["recordFPS"], out resultInt);
+            Variables.recordFPS = parseSuccess ? resultInt : 0;
+
+            parseSuccess = float.TryParse(config["posSmoothness"], NumberStyles.Any, cultureInfo, out resultFloat);
+            Variables.posSmoothness = parseSuccess ? resultFloat : 0;
+
+            parseSuccess = float.TryParse(config["rotSmoothness"], NumberStyles.Any, cultureInfo, out resultFloat);
+            Variables.rotSmoothness = parseSuccess ? resultFloat : 0;
+
+            parseSuccess = float.TryParse(config["distFromPlayers"], NumberStyles.Any, cultureInfo, out resultFloat);
+            Variables.distFromPlayers = parseSuccess ? resultFloat : 0;
+
+            parseSuccess = int.TryParse(config["cinematicCloseHeight"], out resultInt);
+            Variables.cinematicCloseHeight = parseSuccess ? resultInt : 0;
+
+            parseSuccess = int.TryParse(config["cinematicFarHeight"], out resultInt);
+            Variables.cinematicFarHeight = parseSuccess ? resultInt : 0;
+
+            parseSuccess = float.TryParse(config["minimapSize"], NumberStyles.Any, cultureInfo, out resultFloat);
+            Variables.minimapSize = parseSuccess ? resultFloat / 100 : 0;
+
             Variables.customPrecisionFormatClientPosition = config["customPrecisionFormatClientPosition"];
             Variables.customPrecisionFormatClientRotation = config["customPrecisionFormatClientRotation"];
             Variables.customPrecisionFormatTargetPosition = config["customPrecisionFormatTargetPosition"];
@@ -582,6 +618,30 @@ namespace ReplayMod
             Variables.chatBox = ChatBox.Instance;
             Variables.clientInventory = PlayerInventory.Instance;
             //debugChat();
+        }
+        public static string ConvertUnixTimestamp()
+        {
+            long unixTimestamp = Variables.replayDate;
+
+            if (unixTimestamp == 0)
+            {
+                return "N/A";
+            }
+
+            DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(unixTimestamp);
+            string formattedDateTime = dateTimeOffset.ToString("yyyy-MM-dd HH:mm:ss");
+            return formattedDateTime;
+        }
+        public static string ConvertUnixTimestamp(long unixTimestamp)
+        {
+            if (unixTimestamp == 0)
+            {
+                return "N/A";
+            }
+
+            DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeMilliseconds(unixTimestamp);
+            string formattedDateTime = dateTimeOffset.ToString("yyyy-MM-dd HH:mm:ss");
+            return formattedDateTime;
         }
     }
     public class ClientData
@@ -668,7 +728,8 @@ namespace ReplayMod
         {
             Rigidbody rb = null;
 
-            bool result = Utility.DoesFunctionCrash(() => {
+            bool result = Utility.DoesFunctionCrash(() =>
+            {
                 Variables.gameManager.activePlayers.entries.ToList()[selector].value.GetComponent<Rigidbody>();
             });
 
@@ -702,7 +763,8 @@ namespace ReplayMod
     {
         public static void HasStickCheck()
         {
-            bool result = Utility.DoesFunctionCrash(() => {
+            bool result = Utility.DoesFunctionCrash(() =>
+            {
                 if (PlayerInventory.Instance.currentItem.name == "Stick(Clone)") ;
             });
 
@@ -760,7 +822,7 @@ namespace ReplayMod
         {
             return UnityEngine.Object.FindObjectOfType<GameManager>()?.gameMode.modeState.ToString();
         }
-    } 
+    }
 
     public class ReplayControllerFunctions
     {
@@ -821,6 +883,7 @@ namespace ReplayMod
                 string value = parts[3]; // Get the 4th element
                 Variables.replayMap = int.Parse(value);
                 Variables.replayFPS = int.Parse(parts[4]);
+                Variables.replayDate = long.Parse(parts[2]);
 
                 Variables.clientCloneName = parts[0];
                 Variables.otherPlayerCloneName = parts[1];
@@ -1074,7 +1137,8 @@ namespace ReplayMod
             Variables.replayEnded = true;
             Variables.isReplayReaderInitialized = false;
             Variables.replayTrigger = false;
-            Variables.replaySpeed = 1;
+            Variables.replayDate = 0;
+            Variables.replayMap = 100;
 
             if ((Variables.cinematicTrigger || Variables.povTrigger) && !Variables.replayStop && GameData.GetGameModeIdAsString() == "13")
             {
@@ -1229,7 +1293,6 @@ namespace ReplayMod
                 Variables.lastRecordTime = DateTime.Now;
             }
         }
-
         public static void HandleGamePlay()
         {
             if (!Variables.recording && !Variables.forceRecord)
@@ -1250,7 +1313,6 @@ namespace ReplayMod
                 Variables.lastRecordTime = DateTime.Now;
             }
         }
-
         public static void InitRecord(string first, string second)
         {
             Variables.startGame = DateTime.Now;
@@ -1271,7 +1333,6 @@ namespace ReplayMod
 
             Variables.lastRecordTime = DateTime.Now;
         }
-
         public static void CreateDirectoryIfNotExists(string directory)
         {
             if (!System.IO.Directory.Exists(directory))
@@ -1279,7 +1340,6 @@ namespace ReplayMod
                 System.IO.Directory.CreateDirectory(directory);
             }
         }
-
         public static void CleanDirectory(string directoryPath, int numberOfFilesToKeep)
         {
             var files = new DirectoryInfo(directoryPath).GetFiles();
@@ -1291,7 +1351,6 @@ namespace ReplayMod
                 orderedFiles.RemoveAt(orderedFiles.Count - 1);
             }
         }
-
         public static void RenameFile()
         {
             string sourceFile = Variables.mainFolderPath + "replays\\" + Variables.replayFileName + ";Recording.txt";
@@ -1301,7 +1360,6 @@ namespace ReplayMod
                 fi.MoveTo(Variables.mainFolderPath + "replays\\" + Variables.replayFileName + ".txt");
             }
         }
-
         public static void EndGame()
         {
             if (!Variables.gameEnded)
@@ -1311,6 +1369,327 @@ namespace ReplayMod
 
             Variables.recording = false;
             Variables.gameEnded = true;
+        }
+    }
+
+    public class MenuFunctions
+    {
+        public static void RegisterDataCallback(string s, System.Func<string> f)
+        {
+            Variables.DebugDataCallbacks.Add(s, f);
+        }
+        public static void RegisterDataCallbacks(System.Collections.Generic.Dictionary<string, System.Func<string>> dict)
+        {
+            foreach (System.Collections.Generic.KeyValuePair<string, System.Func<string>> pair in dict)
+            {
+                Variables.DebugDataCallbacks.Add(pair.Key, pair.Value);
+            }
+        }
+        public static void CheckMenuFileExists()
+        {
+            if (!System.IO.File.Exists(Variables.menuPath))
+            {
+                System.IO.File.WriteAllText(Variables.menuPath, "\t\r\n\tReplay ID selected  : [REPLAYFILE]  |  Replay speed : [REPLAYSPEED]  |  View : [VIEWMODE]  |  Map : [MAP]  |  Date : [DATE]  | Replay State : [REPLAYSTATUS]\r\n\r\n\r\n\t______________________________________________________________________\r\n\r\n<b>\r\n\r\n\t[MENUBUTTON0]\r\n\r\n\r\n\r\n\t[MENUBUTTON1]\r\n\r\n\r\n\r\n\t[MENUBUTTON2]\r\n\r\n\r\n\r\n\t[MENUBUTTON3]\r\n\r\n\r\n\r\n\t[MENUBUTTON4]\r\n\r\n</b>", System.Text.Encoding.UTF8);
+            }
+            if (!System.IO.File.Exists(Variables.mapNamePath))
+            {
+                System.IO.File.WriteAllText(Variables.mapNamePath, "0 : Bitter Beach\r\n1 : Blueline\r\n2 : Cocky Containers\r\n3 : Color Climb\r\n4 : Crusty Rocks\r\n5 : Desert\r\n6 : Dorm\r\n7 : Funky Field\r\n8 : Glass Jump\r\n9 : Hasty Hill\r\n10 : Icy Crack\r\n11 : Icy Islands\r\n12 : Icy Rocks\r\n13 : Islands\r\n14 : Karlson\r\n15 : Lanky Lava\r\n16 : Lava Lake\r\n17 : Plains\r\n18 : Playground\r\n19 : Playground 2\r\n20 : Return to Monke\r\n21 : Sandstorm\r\n22 : Slippery Slope\r\n23 : (S) Color Climb\r\n24 : (S) Glass Jump\r\n25 : (S) Hill\r\n26 : (S) Icy Islands\r\n27 : (S) Islands\r\n28 : (S) Playground\r\n29 : Snowtop\r\n30 : Splat\r\n31 : Splot\r\n32 : Sunny Saloon\r\n33 : Toxic Train\r\n34 : Twisted Towers\r\n35 : Mini Monke\r\n36 : (S) Beach\r\n37 : (S) Saloon\r\n38 : (S) Containers\r\n39 : Tiny Town 2\r\n40 : Tiny Town\r\n41 : Dodgy Fields\r\n42 : Dodgy Ice\r\n43 : Dodgy Snow\r\n44 : Dodgy Streets\r\n45 : Sandy Islands\r\n46 : (S) Sandy Islands\r\n47 : Cheeky Chamber\r\n48 : Lava Drop\r\n49 : Lava Dump\r\n50 : Peaceful Platform\r\n51 : Salty Island\r\n52 : Skybox\r\n53 : Saucy Stage\r\n54 : Lava Climb\r\n55 : Macaroni Mountain\r\n56 : Sussy Sandcastle\r\n57 : Sussy Slope\r\n58 : Sandy Stones\r\n59 : Crabfields\r\n60 : Crabheat\r\n61 : Crabland", System.Text.Encoding.UTF8);
+            }
+
+            if (!System.IO.Directory.Exists(Variables.mainFolderPath + "replays"))
+            {
+                System.IO.Directory.CreateDirectory(Variables.mainFolderPath + "replays");
+            }
+            if (!System.IO.File.Exists(Variables.replayInitPath))
+            {
+                System.IO.File.WriteAllText(Variables.replayInitPath, "", System.Text.Encoding.UTF8);
+            }
+
+        }
+        public static void LoadMenuLayout()
+        {
+            Variables.layout = System.IO.File.ReadAllText(Variables.menuPath, System.Text.Encoding.UTF8);
+        }
+        public static void RegisterDefaultCallbacks()
+        {
+            RegisterDataCallbacks(new System.Collections.Generic.Dictionary<string, System.Func<string>>(){
+                {"REPLAYFILE", () => Variables.replayFile.ToString()},
+                {"REPLAYSPEED", () => Variables.replaySpeed.ToString()},
+                {"VIEWMODE", GetViewMode},
+                {"MAP",GetMapName},
+                {"DATE", Utility.ConvertUnixTimestamp},
+                {"REPLAYSTATUS", GetReplayStatus},
+                {"RECORDSTATUS",GetRecordStatus},
+                {"MENUBUTTON0",() => Variables.displayButton0},
+                {"MENUBUTTON1",() => Variables.displayButton1},
+                {"MENUBUTTON2",() => Variables.displayButton2},
+                {"MENUBUTTON3",() => Variables.displayButton3},
+                {"MENUBUTTON4",() => Variables.displayButton4},
+            });
+        }
+
+        public static string FormatLayout()
+        {
+            string formatted = Variables.layout;
+            foreach (System.Collections.Generic.KeyValuePair<string, System.Func<string>> pair in Variables.DebugDataCallbacks)
+            {
+                formatted = formatted.Replace("[" + pair.Key + "]", pair.Value());
+            }
+            return formatted;
+        }
+        public static string GetViewMode()
+        {
+            switch (true)
+            {
+                case var _ when !Variables.minimapTrigger && !Variables.povTrigger && !Variables.cinematicTrigger:
+                    return "Classic";
+                case var _ when Variables.minimapTrigger:
+                    return "Minimap";
+                case var _ when Variables.povTrigger:
+                    return "POV";
+                case var _ when Variables.cinematicTrigger:
+                    return "Cinematic";
+                default:
+                    return "";
+            }
+        }
+        public static string GetMapName()
+        {
+            int mapId = Variables.replayMap;
+
+            // Lecture du contenu du fichier texte
+            string[] lines = System.IO.File.ReadAllLines(Variables.defaultFolderPath + "ReplayMod\\minimaps\\mapsObjectsDatas\\MapName.txt");
+
+            // Parcourir les lignes et rechercher l'ID correspondant
+            foreach (string line in lines)
+            {
+                string[] parts = line.Split(':');
+                if (parts.Length == 2)
+                {
+                    int id;
+                    if (int.TryParse(parts[0], out id))
+                    {
+                        if (id == mapId)
+                        {
+                            return parts[1];
+                        }
+                    }
+                }
+            }
+
+            return "Unknown"; // ID de map non trouvé dans le fichier
+        }
+        public static string GetMapName(int mapId)
+        {
+            // Lecture du contenu du fichier texte
+            string[] lines = System.IO.File.ReadAllLines(Variables.defaultFolderPath + "ReplayMod\\minimaps\\mapsObjectsDatas\\MapName.txt");
+
+            // Parcourir les lignes et rechercher l'ID correspondant
+            foreach (string line in lines)
+            {
+                string[] parts = line.Split(':');
+                if (parts.Length == 2)
+                {
+                    int id;
+                    if (int.TryParse(parts[0], out id))
+                    {
+                        if (id == mapId)
+                        {
+                            return parts[1];
+                        }
+                    }
+                }
+            }
+
+            return "Unknown"; // ID de map non trouvé dans le fichier
+        }
+        public static string GetReplayStatus()
+        {
+            switch (true)
+            {
+                case var _ when Variables.replayTrigger && !Variables.replayStop:
+                    return "Active";
+                case var _ when !Variables.replayTrigger && !Variables.replayStop:
+                    return "Inactive";
+                default:
+                    return "Error";
+            }
+        }
+        public static string GetRecordStatus()
+        {
+            switch (true)
+            {
+                case var _ when Variables.forceRecord:
+                    return "Force recording";
+                case var _ when !Variables.recording:
+                    return "recording";
+                default:
+                    return "Inactive";
+            }
+        }
+        public static string GetSelectedReplayFileName()
+        {
+            bool force = false;
+            DirectoryInfo directory = new DirectoryInfo(Variables.mainFolderPath + "replays\\");
+            FileInfo[] files = directory.GetFiles("*.txt");
+
+            if (files.Length == 0)
+            {
+                return "N/A";
+            }
+
+            Array.Sort(files, (x, y) => y.LastWriteTime.CompareTo(x.LastWriteTime));
+
+            int fileIndexToRead = Variables.replayFile;
+            if (fileIndexToRead >= files.Length)
+            {
+                return "N/A";
+            }
+            string[] parts = files[fileIndexToRead].Name.Split(';');
+            if (parts.Length < 4)
+            {
+                return "Wrong nomenclature, check the file name";
+            }
+            if (parts[0] == "force")
+                force = true;
+
+            if (force)
+                return "ForceRecord  |  " + GetMapName(int.Parse(parts[3])) + "  |  " + Utility.ConvertUnixTimestamp(long.Parse(parts[2]));
+
+            else
+                return parts[0] + " vs " + parts[1] + "  |  " + GetMapName(int.Parse(parts[3])) + "  |  " + Utility.ConvertUnixTimestamp(long.Parse(parts[2]));
+        }
+        public static string GetSelectedReplayView()
+        {
+            switch (Variables.subMenuSelector)
+            {
+                case 0:
+                    return "■<color=orange>Classic</color>■    POV    Cinematic    Minimap";
+                case 1:
+                    return "  Classic  ■<color=orange>POV</color>■  Cinematic    Minimap";
+                case 2:
+                    return "  Classic    POV  ■<color=orange>Cinematic</color>■  Minimap";
+                case 3:
+                    return "  Classic    POV    Cinematic  ■<color=orange>Minimap</color>■";
+                default:
+                    return "";
+            }
+        }
+        public static string GetForceRecordState()
+        {
+            if (Variables.menuSelector == 3 && Variables.onButton) 
+                return "<b><color=red>ON</color></b>";
+            else if (Variables.menuSelector == 3)
+                return "<b><color=blue>OFF</color></b>";
+            return "";
+
+        }
+        public static string HandleMenuDisplay(int buttonIndex, Func<string> getButtonLabel, Func<string> getButtonSpecificData)
+        {
+            string buttonLabel = getButtonLabel();
+
+            if (Variables.menuSelector != buttonIndex)
+            {
+                Variables.buttonStates[buttonIndex] = false;
+                return $" {buttonLabel} ";
+            }
+
+            if (!Variables.buttonStates[buttonIndex])
+            {
+                return $"■<color=yellow>{buttonLabel}</color>■  <b>{getButtonSpecificData()}</b>";
+            }
+            else
+            {
+                return $"<color=red>■</color><color=yellow>{buttonLabel}</color><color=red>■</color>  <b>{getButtonSpecificData()}</b>";
+            }
+        }
+        public static void ExecuteSubMenuAction()
+        {
+            if (!Variables.onButton)
+            {
+                var selectors = (Variables.menuSelector, Variables.subMenuSelector);
+
+                switch (selectors)
+                {
+                    case (3, -1):
+                        Variables.forceRecord = true;
+                        string message = "■<color=yellow>ForceRecord mode ON</color>■";
+                        Variables.chatBox.ForceMessage(message);
+                        break;
+                    case (4, -1):
+                        Variables.chatBox.ForceMessage("■<color=black>Replay Stopped</color>■");
+                        Variables.replayStop = true;
+                        break;
+                }
+            }
+            if (Variables.onButton)
+            {
+                var selectors = (Variables.menuSelector, Variables.subMenuSelector);
+
+                switch (selectors)
+                {
+                    case (2, 0):
+                        Variables.replayTrigger = true;
+                        Variables.chatBox.ForceMessage("■<color=yellow>Replay mode ON</color>■");
+                        break;
+                    case (2, 1):
+                        if (GameData.GetMapId() == Variables.replayMap || !Variables.minimapTrigger)
+                        {
+                            Variables.chatBox.ForceMessage("■<color=yellow>POV mode ON</color>■");
+                            Variables.replayTrigger = true;
+                            Variables.povTrigger = true;
+                            Variables.cinematicTrigger = false;
+                        }
+                        else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
+                        {
+                            Variables.chatBox.ForceMessage("■<color=red>Error, you can't use this now, switch into the good map</color>■");
+                        }
+                        else
+                        {
+                            Variables.minimapTrigger = false;
+                        }
+                        break;
+                    case (2, 2):
+                        if (GameData.GetMapId() == Variables.replayMap || !Variables.minimapTrigger)
+                        {
+                            Variables.chatBox.ForceMessage("■<color=yellow>Cinematic mode ON</color>■");
+                            Variables.replayTrigger = true;
+                            Variables.cinematicTrigger = true;
+                            Variables.povTrigger = false;
+                        }
+                        else if (Variables.minimapTrigger && Variables.mapId != Variables.replayMap && Variables.gamemodeId == 13)
+                        {
+                            Variables.chatBox.ForceMessage("■<color=red>Error, you can't use this now, switch into the good map</color>■");
+                        }
+                        else
+                        {
+                            Variables.minimapTrigger = false;
+                        }
+                        break;
+                    case (2, 3):
+                        if (GameData.GetGameModId() == 0 || GameData.GetGameModId() == 13)
+                        {
+                            Variables.chatBox.ForceMessage("■<color=yellow>Minimap mode ON</color>■");
+                            Variables.chatBox.ForceMessage("■<color=yellow>Press F to fix the map</color>■");
+                            Variables.replayTrigger = true;
+                            Variables.minimapTrigger = true;
+                            Variables.povTrigger = false;
+                            Variables.cinematicTrigger = false;
+                        }
+                        else
+                        {
+                            Variables.chatBox.ForceMessage("■<color=red>You can't use that during a game, wait the Lobby!</color>■");
+                        }
+                        break;
+                    case (3, -1):
+                        Variables.forceRecord = false;
+
+                        string message = "■<color=black>ForceRecord mode OFF</color>■";
+                        Variables.chatBox.ForceMessage(message);
+                        break;
+                }
+                Variables.subMenuSelector = -1;
+            }
         }
     }
 }

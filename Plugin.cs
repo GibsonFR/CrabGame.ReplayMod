@@ -16,10 +16,11 @@ global using Dummiesman;
 global using System.Net.Http;
 global using System.Threading.Tasks;
 global using System.IO.Compression;
+global using System.Globalization;
 
 namespace ReplayMod
 {
-    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.5")]
+    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.6")]
     public class Plugin : BasePlugin
     {
         public override void Load()
@@ -27,8 +28,14 @@ namespace ReplayMod
             ClassInjector.RegisterTypeInIl2Cpp<Basics>();
             ClassInjector.RegisterTypeInIl2Cpp<ReplayController>();
             ClassInjector.RegisterTypeInIl2Cpp<RecordController>();
+            ClassInjector.RegisterTypeInIl2Cpp<Menu>();
             Utility.CreateConfigFile();
             Utility.DownloadMinimapDatas();
+
+            Variables.DebugDataCallbacks = new System.Collections.Generic.Dictionary<string, System.Func<string>>();
+            MenuFunctions.CheckMenuFileExists();
+            MenuFunctions.LoadMenuLayout();
+            MenuFunctions.RegisterDefaultCallbacks();
 
             // Plugin startup logic
             Harmony.CreateAndPatchAll(typeof(Plugin));
@@ -183,19 +190,183 @@ namespace ReplayMod
             }
         }
 
-        public class Basics : MonoBehaviour
+        public class Menu : MonoBehaviour
         {
-            private bool isStarted = false;
+            DateTime start = DateTime.Now;
+            public Text textMenu;
+
+            // Importation des fonctions de la librairie user32.dll
+            [DllImport("user32.dll")]
+            private static extern short GetKeyState(int nVirtKey);
+            [DllImport("user32.dll")]
+            private static extern short GetAsyncKeyState(int vKey);
+            [DllImport("user32.dll")]
+            private static extern int GetSystemMetrics(int nIndex);
+
+            // Constantes pour la détection du clic droit et de la molette de la souris
+            const int VK_RBUTTON = 0x02;
 
             void Update()
             {
+                // Calcule la différence de temps depuis la dernière mise à jour
+                TimeSpan elapsed = DateTime.Now - start;
+                Variables.displayButton0 = MenuFunctions.HandleMenuDisplay(0, () => "Replay File", MenuFunctions.GetSelectedReplayFileName);
+                Variables.displayButton1 = MenuFunctions.HandleMenuDisplay(1, () => "Replay Speed", () => $"= {Variables.replaySpeed}");
+                Variables.displayButton2 = MenuFunctions.HandleMenuDisplay(2, () => "Start Replay", MenuFunctions.GetSelectedReplayView);
+                Variables.displayButton3 = MenuFunctions.HandleMenuDisplay(3, () => "Force Record", MenuFunctions.GetForceRecordState);
+                Variables.displayButton4 = MenuFunctions.HandleMenuDisplay(4, () => "Stop Replay", () => $"");
+
+                // Exécute les actions de menu si 'menuTrigger' est vrai et assez de temps s'est écoulé
+                if (Variables.menuTrigger && elapsed.TotalMilliseconds >= 150)
+                {
+                    Variables.menuSpeedHelper2 = 0;
+                    // Met à jour le 'menuSelector' et joue le son du menu en fonction de la touche pressée
+                    if (Input.GetKey("[4]") || Input.GetKey("[6]") || Input.GetKey("[5]"))
+                    {
+
+                        if (elapsed.TotalMilliseconds <= 200)
+                            Variables.menuSpeedHelper += 2;
+                        if (Variables.menuSpeedHelper > 8)
+                            Variables.menuSpeed = 5;
+                        else
+                            Variables.menuSpeed = 1;
+
+                        // Joue le son du menu si 'clientBody' est non null
+                        if (Variables.clientBody != null)
+                        {
+                            Utility.PlayMenuSound();
+                        }
+
+                        if (Input.GetKey("[4]"))
+                        {
+                            if (!Variables.onButton)
+                                Variables.menuSelector = Variables.menuSelector > 0 ? Variables.menuSelector - 1 : Variables.buttonStates.Length;
+                            else
+                            {
+                                switch (Variables.menuSelector)
+                                {
+                                    case 0:
+                                        Variables.replayFile = Variables.replayFile > 0 ? Variables.replayFile - 1 : Variables.maxReplayFile;
+                                        break;
+                                    case 1:
+                                        Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed - 0.1f * Variables.menuSpeed, 1);
+                                        if (Variables.replaySpeed < 0)
+                                            Variables.replaySpeed = 0;
+                                        break;
+                                    case 2:
+                                        Variables.subMenuSelector = Variables.subMenuSelector > 0 ? Variables.subMenuSelector - 1 : 3;
+                                        break;
+                                    default:
+                                        return;
+                                }
+                            }
+                        }
+
+                        if (Input.GetKey("[6]"))
+                        {
+                            if (!Variables.onButton)
+                                Variables.menuSelector = Variables.menuSelector < Variables.buttonStates.Length ? Variables.menuSelector + 1 : 0;
+                            else
+                            {
+                                switch (Variables.menuSelector)
+                                {
+                                    case 0:
+                                        Variables.replayFile = Variables.replayFile < Variables.maxReplayFile ? Variables.replayFile + 1 : 0;
+                                        break;
+                                    case 1:
+                                        Variables.replaySpeed = Variables.replaySpeed < 10 ? Variables.replaySpeed + 0.1f * Variables.menuSpeed : 10;
+                                        Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed, 1); // Arrondir à une décimale
+                                        break;
+                                    case 2:
+                                        Variables.subMenuSelector = Variables.subMenuSelector < 3 ? Variables.subMenuSelector + 1 : 0;
+                                        break;
+                                    default:
+                                        return;
+                                }
+                            }
+                        }
+
+                        if (Input.GetKey("[5]"))
+                        {
+                            if (Variables.menuSelector < Variables.buttonStates.Length)
+                            {
+                                if (Variables.menuSelector == 2 && !Variables.onButton)
+                                    Variables.subMenuSelector = 0;
+                                MenuFunctions.ExecuteSubMenuAction();
+                                Variables.buttonStates[Variables.menuSelector] = !Variables.buttonStates[Variables.menuSelector];
+                                Variables.onButton = Variables.buttonStates[Variables.menuSelector];
+
+                                if (Variables.menuSelector == 4)
+                                {
+                                    Variables.onButton = false;
+                                    Variables.buttonStates[4] = false;
+                                }
+                            }
+                        }
+                        // Met à jour le moment de la dernière action
+                        start = DateTime.Now;
+                    }
+                }
+                if (elapsed.TotalMilliseconds >= 150 + Variables.menuSpeedHelper2)
+                {
+                    if (Variables.menuSpeedHelper > 0)
+                        Variables.menuSpeedHelper -= 1;
+                    Variables.menuSpeedHelper2 += 150;
+
+
+                }
+            }
+        }
+        public class Basics : MonoBehaviour
+        {
+            public Text text;
+            private bool isStarted = false;
+
+            DateTime start = DateTime.Now;
+            void Update()
+            {
+                DateTime end = DateTime.Now;
                 if (!isStarted)
                 {
                     Utility.LoadConfigurations();
+
+                    Variables.buttonStates = new bool[5];
+                    Variables.buttonStates[0] = false; 
+                    Variables.buttonStates[1] = false;
+                    Variables.buttonStates[2] = false;
+                    Variables.buttonStates[3] = false;
+                    Variables.buttonStates[4] = false;
+
                     isStarted = true;
                 }
-            }
 
+                if (Input.GetKeyDown("f4"))
+                {
+                    if (Variables.clientBody != null)
+                    {
+                        PlayerInventory.Instance.woshSfx.pitch = 200;
+                        PlayerInventory.Instance.woshSfx.Play();
+                    }
+                    Variables.menuTrigger = !Variables.menuTrigger;
+                    if (Variables.menuTrigger)
+                    {
+                        ChatBox.Instance.ForceMessage("■<color=orange>Menu <color=blue>ON</color></color>■");
+                        ChatBox.Instance.ForceMessage("■<color=orange>navigate the menu using the numeric keypad (VER NUM ON)</color>■");
+                        ChatBox.Instance.ForceMessage("■<color=orange>press 4 or 6 to move forwards or backwards, and 5 to select</color>■");
+                    }
+                    else
+                        ChatBox.Instance.ForceMessage("■<color=orange>Menu <color=red>OFF</color></color>■");
+                }
+
+                TimeSpan ts = (end - start);
+
+
+                if (ts.TotalMilliseconds >= 200)
+                {
+                    start = DateTime.Now;
+                    text.text = Variables.menuTrigger ? MenuFunctions.FormatLayout() : "";
+                }
+            }
         }
 
         [HarmonyPatch(typeof(ChatBox), nameof(ChatBox.AppendMessage))]
@@ -215,12 +386,15 @@ namespace ReplayMod
             GameObject menuObject = new GameObject();
             Text text = menuObject.AddComponent<Text>();
             text.font = (Font)Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.fontSize = 16;
             text.raycastTarget = false;
 
             Basics basics = menuObject.AddComponent<Basics>();
 
             ReplayController replay = menuObject.AddComponent<ReplayController>();
             RecordController recording = menuObject.AddComponent<RecordController>();
+            Menu menu = menuObject.AddComponent<Menu>();
+            basics.text = text;
 
             menuObject.transform.SetParent(__instance.transform);
             menuObject.transform.localPosition = new UnityEngine.Vector3(menuObject.transform.localPosition.x, -menuObject.transform.localPosition.y, menuObject.transform.localPosition.z);

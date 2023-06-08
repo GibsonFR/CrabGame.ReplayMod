@@ -8,6 +8,7 @@ namespace ReplayMod
     internal class Variables
     {
         public static Il2CppSystem.Collections.Generic.Dictionary<ulong, PlayerManager> activePlayers = null;
+        public static Dictionary<string, System.Func<string>> DebugDataCallbacks;
         public static Camera camera;
         public static DateTime startGame, fixMapTimeStamp, lastRecordTime;
 
@@ -43,6 +44,10 @@ namespace ReplayMod
         public static string customPrecisionFormatTargetPosition = "F2";
         public static string colorClient = "black";
         public static string colorOtherPlayer = "white";
+        public static string layout;
+        public static string menuPath = mainFolderPath + "config\\menu.txt";
+        public static string mapNamePath = mainFolderPath + "minimaps\\mapsObjectsDatas\\mapName.txt";
+        public static string replayInitPath = mainFolderPath + "replays\\Replay;Mod;1;0;1.txt";
 
         //ulong
         public static ulong clientId;
@@ -65,12 +70,20 @@ namespace ReplayMod
         public static int gamemodeId;
         public static int clientPlayerId;
         public static int replayFile = 0;
-        public static int replayMap = 0;
+        public static int replayMap = 100;
         public static int recordFPS = 30;
         public static int replayFPS = 30;
         public static int maxReplayFile = 10;
         public static int cinematicCloseHeight = 1;
         public static int cinematicFarHeight = 12;
+        public static int menuSelector;
+        public static int subMenuSelector;
+        public static int menuSpeed = 1;
+        public static int menuSpeedHelper;
+        public static int menuSpeedHelper2;
+
+        //long
+        public static long replayDate;
 
 
         //boolean
@@ -93,6 +106,16 @@ namespace ReplayMod
         public static bool replaySafeClose = true;
         public static bool isForceRecord = false;
         public static bool recording = false;
+        public static bool menuTrigger = false;
+
+        //bool for Menu
+        public static bool onButton = false;
+        public static bool[] buttonStates;
+        public static string displayButton0;
+        public static string displayButton1;
+        public static string displayButton2;
+        public static string displayButton3;
+        public static string displayButton4;
 
         //Vector3
         public static Vector3 initialMapPosition = Vector3.zero;
