@@ -828,19 +828,23 @@ namespace ReplayMod
     {
         public static Vector3 ParseVector3(string[] info, int startIndex)
         {
+            CultureInfo culture = CultureInfo.InvariantCulture;
+
             return new Vector3(
-                float.Parse(info[startIndex].Replace("(", string.Empty).Replace(".", ",")),
-                float.Parse(info[startIndex + 1].Replace(".", ",")),
-                float.Parse(info[startIndex + 2].Replace(")", string.Empty).Replace(".", ","))
+                float.Parse(info[startIndex].Replace("(", string.Empty), culture),
+                float.Parse(info[startIndex + 1], culture),
+                float.Parse(info[startIndex + 2].Replace(")", string.Empty), culture)
             );
         }
         public static Quaternion ParseQuaternion(string[] info, int startIndex)
         {
+            CultureInfo culture = CultureInfo.InvariantCulture;
+
             return new Quaternion(
-                float.Parse(info[startIndex].Replace("(", string.Empty).Replace(".", ",")),
-                float.Parse(info[startIndex + 1].Replace(".", ",")),
-                float.Parse(info[startIndex + 2].Replace(".", ",")),
-                float.Parse(info[startIndex + 3].Replace(")", string.Empty).Replace(".", ","))
+                float.Parse(info[startIndex].Replace("(", string.Empty), culture),
+                float.Parse(info[startIndex + 1], culture),
+                float.Parse(info[startIndex + 2], culture),
+                float.Parse(info[startIndex + 3].Replace(")", string.Empty), culture)
             );
         }
         public static void InitializeReader()
@@ -1427,7 +1431,6 @@ namespace ReplayMod
                 {"MENUBUTTON4",() => Variables.displayButton4},
             });
         }
-
         public static string FormatLayout()
         {
             string formatted = Variables.layout;
