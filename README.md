@@ -1,6 +1,23 @@
 # ReplayMod
 A mod to replay your 1v1 match and more!
 
+Go into Practice Mode and press F4 to open the menu :
+
+Navigate through the menu using the Num Pad (VER NUM)
+
+4 and 6 control to switch to another button
+
+5 to select a button
+
+
+
+OR
+
+
+
+
+
+
 Go into Practice Mode and type the following commands in the chat box :
 
 replay or r -> Starts a replay, by default the last recording
