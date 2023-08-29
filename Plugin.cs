@@ -20,15 +20,16 @@ global using System.Globalization;
 
 namespace ReplayMod
 {
-    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.6")]
+    [BepInPlugin("GUID_du_plugin", "ReplayMod", "0.1.7")]
     public class Plugin : BasePlugin
     {
         public override void Load()
         {
             ClassInjector.RegisterTypeInIl2Cpp<Basics>();
-            ClassInjector.RegisterTypeInIl2Cpp<ReplayController>();
-            ClassInjector.RegisterTypeInIl2Cpp<RecordController>();
-            ClassInjector.RegisterTypeInIl2Cpp<Menu>();
+            ClassInjector.RegisterTypeInIl2Cpp<ReplayManager>();
+            ClassInjector.RegisterTypeInIl2Cpp<RecordManager>();
+            ClassInjector.RegisterTypeInIl2Cpp<MenuManager>();
+            ClassInjector.RegisterTypeInIl2Cpp<MedalLikeRecord>();
             Utility.CreateConfigFile();
             Utility.DownloadMinimapDatas();
 
@@ -40,7 +41,7 @@ namespace ReplayMod
             // Plugin startup logic
             Harmony.CreateAndPatchAll(typeof(Plugin));
         }    
-        public class ReplayController : MonoBehaviour
+        public class ReplayManager : MonoBehaviour
         {
             private float elapsed = 0f; // Elapsed time variable
             private bool init = false;
@@ -95,7 +96,7 @@ namespace ReplayMod
 
             private void CheckPracticeMode()
             {
-                if (GameData.GetGameModeIdAsString() != "13" && !Variables.minimapTrigger)
+                if (GameData.GetGameModId().ToString() != "13" && !Variables.minimapTrigger)
                 {
                     Variables.replayStop = true;
                     Variables.povTrigger = false;
@@ -108,7 +109,7 @@ namespace ReplayMod
             {
                 if (!Variables.isReplayReaderInitialized)
                 {
-                    ReplayControllerFunctions.InitializeReader();
+                    ReplayFunctions.InitializeReader();
                 }
             }
 
@@ -118,12 +119,12 @@ namespace ReplayMod
                 {
                     if (!Variables.clientCloneVisibility)
                     {
-                        ReplayControllerFunctions.TogglePlayerVisibility(Variables.clientClone);
+                        ReplayFunctions.TogglePlayerVisibility(Variables.clientClone);
                         Variables.clientCloneVisibility = true;
                     }
                     if (Variables.checkingForceRecord != "force" && !Variables.otherPlayerCloneVisibility)
                     {
-                        ReplayControllerFunctions.TogglePlayerVisibility(Variables.otherPlayerClone);
+                        ReplayFunctions.TogglePlayerVisibility(Variables.otherPlayerClone);
                         Variables.otherPlayerCloneVisibility = true;
                     }
                 }
@@ -135,27 +136,56 @@ namespace ReplayMod
 
                 if (Variables.checkingForceRecord == "force" && Variables.otherPlayerCloneVisibility)
                 {
-                    ReplayControllerFunctions.TogglePlayerVisibility(Variables.otherPlayerClone);
+                    ReplayFunctions.TogglePlayerVisibility(Variables.otherPlayerClone);
                     Variables.otherPlayerCloneVisibility = false;
                 }
 
                 if (line != null && !Variables.replayStop)
                 {
-                    ReplayControllerFunctions.ExtractData(line);
+                    ReplayFunctions.ExtractData(line);
 
-                    ReplayControllerFunctions.HandleMinimap();
-                    ReplayControllerFunctions.HandleTag();
-                    ReplayControllerFunctions.HandlePOVTrigger();
-                    ReplayControllerFunctions.HandleCinematicTrigger();
+                    ReplayFunctions.HandleMinimap();
+                    ReplayFunctions.HandleTag();
+                    ReplayFunctions.HandlePOVTrigger();
+                    ReplayFunctions.HandleCinematicTrigger();
                 }
                 else if (!Variables.replaySafeClose)
                 {
-                    ReplayControllerFunctions.HandleReplayEnd();
+                    ReplayFunctions.HandleReplayEnd();
                 }
             }
         }
 
-        public class RecordController : MonoBehaviour
+        public class MedalLikeRecord : MonoBehaviour
+        {
+            bool init;
+            void Update()
+            {
+                if (Variables.medalRecord)
+                {
+                    if (!init)
+                    {
+                        Variables.gameManager = GameObject.Find("/GameManager (1)").GetComponent<GameManager>();
+                        Variables.lastRecordTimeMedal = DateTime.Now;
+                        RecordFunctions.InitRecordMedal("force", "Record");
+                        init = true;
+                    }
+
+                    if ((DateTime.Now - Variables.lastRecordTimeMedal).TotalSeconds >= 1.0 / Variables.recordFPS && init)
+                    {
+                        Utility.LogAllDataForMedal(Variables.replayFileNameMedal, Variables.startGameMedal);
+                        Variables.lastRecordTimeMedal = DateTime.Now;
+                    }
+                }
+                else if (init)
+                {
+                    RecordFunctions.RenameFileMedal();
+                    init = false;
+                }
+            }
+        }
+
+        public class RecordManager : MonoBehaviour
         {
             private DateTime startTimer = DateTime.Now;
             private bool init = false;
@@ -171,29 +201,37 @@ namespace ReplayMod
                 }
                 if (Variables.forceRecord)
                 {
-                    RecordControllerFunctions.HandleForceRecord();
+                    RecordFunctions.HandleForceRecord();
                 }
                 else if (Variables.isForceRecord)
                 {
-                    RecordControllerFunctions.RenameFile();
+                    RecordFunctions.RenameFile();
                     Variables.isForceRecord = false;
                 }
 
                 if (Variables.clientObject != null && GameData.GetGameStateAsString() == "Playing")
                 {
-                    RecordControllerFunctions.HandleGamePlay();
+                    RecordFunctions.HandleGamePlay();
                 }
                 else
                 {
-                    RecordControllerFunctions.EndGame();
+                    RecordFunctions.EndGame();
                 }
             }
         }
 
-        public class Menu : MonoBehaviour
+        public class MenuManager : MonoBehaviour
         {
-            DateTime start = DateTime.Now;
+            DateTime lastActionTime = DateTime.Now;
             public Text textMenu;
+
+            private const string UPKEY = "[4]";
+            private const string SELECTKEY = "[5]";
+            private const string DOWNKEY = "[6]";
+
+            private const float DEFAULT_REPLAY_SPEED_INCREMENT = 0.1f;
+            private const float MAX_REPLAY_SPEED = 10.0f;
+            private const int MIN_REPLAY_TIME = 150;
 
             // Importation des fonctions de la librairie user32.dll
             [DllImport("user32.dll")]
@@ -203,143 +241,184 @@ namespace ReplayMod
             [DllImport("user32.dll")]
             private static extern int GetSystemMetrics(int nIndex);
 
-            // Constantes pour la détection du clic droit et de la molette de la souris
-            const int VK_RBUTTON = 0x02;
-
             void Update()
             {
-                // Calcule la différence de temps depuis la dernière mise à jour
-                TimeSpan elapsed = DateTime.Now - start;
+                TimeSpan elapsed = DateTime.Now - lastActionTime;
+
+                HandleMenuDisplays();
+                HandleMenuActions(elapsed);
+                HandleMenuSpeedHelper(elapsed);
+            }
+
+            private void HandleMenuDisplays()
+            {
                 Variables.displayButton0 = MenuFunctions.HandleMenuDisplay(0, () => "Replay File", MenuFunctions.GetSelectedReplayFileName);
                 Variables.displayButton1 = MenuFunctions.HandleMenuDisplay(1, () => "Replay Speed", () => $"= {Variables.replaySpeed}");
                 Variables.displayButton2 = MenuFunctions.HandleMenuDisplay(2, () => "Start Replay", MenuFunctions.GetSelectedReplayView);
                 Variables.displayButton3 = MenuFunctions.HandleMenuDisplay(3, () => "Force Record", MenuFunctions.GetForceRecordState);
                 Variables.displayButton4 = MenuFunctions.HandleMenuDisplay(4, () => "Stop Replay", () => $"");
+                Variables.displayButton5 = MenuFunctions.HandleMenuDisplay(5, () => "Format file for Bot Tech", () => $"");
+                Variables.displayButton6 = MenuFunctions.HandleMenuDisplay(6, () => "Record like Medal", MenuFunctions.GetMedalRecordState);
+            }
 
-                // Exécute les actions de menu si 'menuTrigger' est vrai et assez de temps s'est écoulé
-                if (Variables.menuTrigger && elapsed.TotalMilliseconds >= 150)
+            private void HandleMenuActions(TimeSpan elapsed)
+            {
+                if (!Variables.menuTrigger || elapsed.TotalMilliseconds < MIN_REPLAY_TIME)
                 {
-                    Variables.menuSpeedHelper2 = 0;
-                    // Met à jour le 'menuSelector' et joue le son du menu en fonction de la touche pressée
-                    if (Input.GetKey("[4]") || Input.GetKey("[6]") || Input.GetKey("[5]"))
-                    {
-
-                        if (elapsed.TotalMilliseconds <= 200)
-                            Variables.menuSpeedHelper += 2;
-                        if (Variables.menuSpeedHelper > 8)
-                            Variables.menuSpeed = 5;
-                        else
-                            Variables.menuSpeed = 1;
-
-                        // Joue le son du menu si 'clientBody' est non null
-                        if (Variables.clientBody != null)
-                        {
-                            Utility.PlayMenuSound();
-                        }
-
-                        if (Input.GetKey("[4]"))
-                        {
-                            if (!Variables.onButton)
-                                Variables.menuSelector = Variables.menuSelector > 0 ? Variables.menuSelector - 1 : Variables.buttonStates.Length;
-                            else
-                            {
-                                switch (Variables.menuSelector)
-                                {
-                                    case 0:
-                                        Variables.replayFile = Variables.replayFile > 0 ? Variables.replayFile - 1 : Variables.maxReplayFile;
-                                        break;
-                                    case 1:
-                                        Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed - 0.1f * Variables.menuSpeed, 1);
-                                        if (Variables.replaySpeed < 0)
-                                            Variables.replaySpeed = 0;
-                                        break;
-                                    case 2:
-                                        Variables.subMenuSelector = Variables.subMenuSelector > 0 ? Variables.subMenuSelector - 1 : 3;
-                                        break;
-                                    default:
-                                        return;
-                                }
-                            }
-                        }
-
-                        if (Input.GetKey("[6]"))
-                        {
-                            if (!Variables.onButton)
-                                Variables.menuSelector = Variables.menuSelector < Variables.buttonStates.Length ? Variables.menuSelector + 1 : 0;
-                            else
-                            {
-                                switch (Variables.menuSelector)
-                                {
-                                    case 0:
-                                        Variables.replayFile = Variables.replayFile < Variables.maxReplayFile ? Variables.replayFile + 1 : 0;
-                                        break;
-                                    case 1:
-                                        Variables.replaySpeed = Variables.replaySpeed < 10 ? Variables.replaySpeed + 0.1f * Variables.menuSpeed : 10;
-                                        Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed, 1); // Arrondir à une décimale
-                                        break;
-                                    case 2:
-                                        Variables.subMenuSelector = Variables.subMenuSelector < 3 ? Variables.subMenuSelector + 1 : 0;
-                                        break;
-                                    default:
-                                        return;
-                                }
-                            }
-                        }
-
-                        if (Input.GetKey("[5]"))
-                        {
-                            if (Variables.menuSelector < Variables.buttonStates.Length)
-                            {
-                                if (Variables.menuSelector == 2 && !Variables.onButton)
-                                    Variables.subMenuSelector = 0;
-                                MenuFunctions.ExecuteSubMenuAction();
-                                Variables.buttonStates[Variables.menuSelector] = !Variables.buttonStates[Variables.menuSelector];
-                                Variables.onButton = Variables.buttonStates[Variables.menuSelector];
-
-                                if (Variables.menuSelector == 4)
-                                {
-                                    Variables.onButton = false;
-                                    Variables.buttonStates[4] = false;
-                                }
-                            }
-                        }
-                        // Met à jour le moment de la dernière action
-                        start = DateTime.Now;
-                    }
+                    return;
                 }
-                if (elapsed.TotalMilliseconds >= 150 + Variables.menuSpeedHelper2)
+
+                Variables.menuSpeedHelper2 = 0;
+
+                bool f5KeyPressed = Input.GetKey(UPKEY);
+                bool f6KeyPressed = Input.GetKey(SELECTKEY);
+                bool f7KeyPressed = Input.GetKey(DOWNKEY);
+                if (f5KeyPressed || f6KeyPressed || f7KeyPressed)
+                {
+                    UpdateMenuSpeed(elapsed);
+                    HandleKeyActions(f5KeyPressed, f6KeyPressed, f7KeyPressed);
+                    lastActionTime = DateTime.Now;
+                }
+            }
+
+            private void HandleMenuSpeedHelper(TimeSpan elapsed)
+            {
+                if (elapsed.TotalMilliseconds >= MIN_REPLAY_TIME + Variables.menuSpeedHelper2)
                 {
                     if (Variables.menuSpeedHelper > 0)
                         Variables.menuSpeedHelper -= 1;
-                    Variables.menuSpeedHelper2 += 150;
+                    Variables.menuSpeedHelper2 += MIN_REPLAY_TIME;
+                }
+            }
 
+            private void UpdateMenuSpeed(TimeSpan elapsed)
+            {
+                if (elapsed.TotalMilliseconds <= 200)
+                    Variables.menuSpeedHelper += 2;
+                if (Variables.menuSpeedHelper > 8)
+                    Variables.menuSpeed = 5;
+                else
+                    Variables.menuSpeed = 1;
 
+                // Play menu sound if 'clientBody' is non-null
+                if (Variables.clientBody != null)
+                {
+                    Utility.PlayMenuSound();
+                }
+            }
+
+            private void HandleKeyActions(bool f5KeyPressed, bool f6KeyPressed, bool f7KeyPressed)
+            {
+                if (f5KeyPressed)
+                {
+                    HandleF5KeyPressed();
+                }
+
+                if (f6KeyPressed)
+                {
+                    HandleF6KeyPressed();
+                }
+
+                if (f7KeyPressed)
+                {
+                    HandleF7KeyPressed();
+                }
+            }
+
+            private void HandleF5KeyPressed()
+            {
+                if (!Variables.onButton)
+                    Variables.menuSelector = Variables.menuSelector > 0 ? Variables.menuSelector - 1 : Variables.buttonStates.Length;
+                else
+                {
+                    switch (Variables.menuSelector)
+                    {
+                        case 0:
+                            Variables.replayFile = Variables.replayFile > 0 ? Variables.replayFile - 1 : Variables.maxReplayFile;
+                            break;
+                        case 1:
+                            Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed - DEFAULT_REPLAY_SPEED_INCREMENT * Variables.menuSpeed, 1);
+                            if (Variables.replaySpeed < 0)
+                                Variables.replaySpeed = 0;
+                            break;
+                        case 2:
+                            Variables.subMenuSelector = Variables.subMenuSelector > 0 ? Variables.subMenuSelector - 1 : 3;
+                            break;
+                        default:
+                            return;
+                    }
+                }
+            }
+
+            private void HandleF7KeyPressed()
+            {
+                if (!Variables.onButton)
+                    Variables.menuSelector = Variables.menuSelector < Variables.buttonStates.Length ? Variables.menuSelector + 1 : 0;
+                else
+                {
+                    switch (Variables.menuSelector)
+                    {
+                        case 0:
+                            Variables.replayFile = Variables.replayFile < Variables.maxReplayFile ? Variables.replayFile + 1 : 0;
+                            break;
+                        case 1:
+                            Variables.replaySpeed = Variables.replaySpeed < MAX_REPLAY_SPEED ? Variables.replaySpeed + DEFAULT_REPLAY_SPEED_INCREMENT * Variables.menuSpeed : MAX_REPLAY_SPEED;
+                            Variables.replaySpeed = (float)Math.Round(Variables.replaySpeed, 1); // Round to one decimal place
+                            break;
+                        case 2:
+                            Variables.subMenuSelector = Variables.subMenuSelector < 3 ? Variables.subMenuSelector + 1 : 0;
+                            break;
+                        default:
+                            return;
+                    }
+                }
+            }
+
+            public static void HandleF6KeyPressed()
+            {
+                if (Variables.menuSelector < Variables.buttonStates.Length)
+                {
+                    if (Variables.menuSelector == 2 && !Variables.onButton)
+                        Variables.subMenuSelector = 0;
+
+                    bool previousButtonState = Variables.buttonStates[Variables.menuSelector];
+                    Variables.buttonStates[Variables.menuSelector] = !previousButtonState;
+
+                    MenuFunctions.ExecuteSubMenuAction();
+
+                    Variables.onButton = Variables.buttonStates[Variables.menuSelector];
+
+                    if (Variables.menuSelector == 4 || Variables.menuSelector == 5)
+                    {
+                        Variables.onButton = false;
+                        Variables.buttonStates[4] = false;
+                        Variables.buttonStates[5] = false;
+                    }
                 }
             }
         }
         public class Basics : MonoBehaviour
         {
             public Text text;
-            private bool isStarted = false;
+            private float elapsedTime = 0f;
+            private bool init;
 
-            DateTime start = DateTime.Now;
+            private const string MENU_ON_MSG = "■<color=orange>MenuManager <color=blue>ON</color></color>■";
+            private const string MENU_OFF_MSG = "■<color=orange>MenuManager <color=red>OFF</color></color>■";
+            private const string NAVIGATION_MSG = "■<color=orange>navigate the menu using the numeric keypad (VER NUM ON)</color>■";
+            private const string SELECTION_MSG = "■<color=orange>press 4 or 6 to move forwards or backwards, and 5 to select</color>■";
+
+
             void Update()
             {
-                DateTime end = DateTime.Now;
-                if (!isStarted)
+                if (!init)
                 {
                     Utility.LoadConfigurations();
-
-                    Variables.buttonStates = new bool[5];
-                    Variables.buttonStates[0] = false; 
-                    Variables.buttonStates[1] = false;
-                    Variables.buttonStates[2] = false;
-                    Variables.buttonStates[3] = false;
-                    Variables.buttonStates[4] = false;
-
-                    isStarted = true;
+                    Variables.buttonStates = new bool[7];
+                    MenuManager.HandleF6KeyPressed();
+                    MenuManager.HandleF6KeyPressed();
+                    init = true;
                 }
-
                 if (Input.GetKeyDown("f4"))
                 {
                     if (Variables.clientBody != null)
@@ -347,24 +426,21 @@ namespace ReplayMod
                         PlayerInventory.Instance.woshSfx.pitch = 200;
                         PlayerInventory.Instance.woshSfx.Play();
                     }
+
                     Variables.menuTrigger = !Variables.menuTrigger;
+                    ChatBox.Instance.ForceMessage(Variables.menuTrigger ? MENU_ON_MSG : MENU_OFF_MSG);
                     if (Variables.menuTrigger)
                     {
-                        ChatBox.Instance.ForceMessage("■<color=orange>Menu <color=blue>ON</color></color>■");
-                        ChatBox.Instance.ForceMessage("■<color=orange>navigate the menu using the numeric keypad (VER NUM ON)</color>■");
-                        ChatBox.Instance.ForceMessage("■<color=orange>press 4 or 6 to move forwards or backwards, and 5 to select</color>■");
+                        ChatBox.Instance.ForceMessage(NAVIGATION_MSG);
+                        ChatBox.Instance.ForceMessage(SELECTION_MSG);
                     }
-                    else
-                        ChatBox.Instance.ForceMessage("■<color=orange>Menu <color=red>OFF</color></color>■");
                 }
 
-                TimeSpan ts = (end - start);
-
-
-                if (ts.TotalMilliseconds >= 200)
+                elapsedTime += Time.deltaTime;
+                if (elapsedTime >= 0.2f)
                 {
-                    start = DateTime.Now;
                     text.text = Variables.menuTrigger ? MenuFunctions.FormatLayout() : "";
+                    elapsedTime = 0f; // reset the timer
                 }
             }
         }
@@ -391,9 +467,10 @@ namespace ReplayMod
 
             Basics basics = menuObject.AddComponent<Basics>();
 
-            ReplayController replay = menuObject.AddComponent<ReplayController>();
-            RecordController recording = menuObject.AddComponent<RecordController>();
-            Menu menu = menuObject.AddComponent<Menu>();
+            ReplayManager replay = menuObject.AddComponent<ReplayManager>();
+            RecordManager recording = menuObject.AddComponent<RecordManager>();
+            MenuManager menu = menuObject.AddComponent<MenuManager>();
+            MedalLikeRecord medal = menuObject.AddComponent<MedalLikeRecord>();
             basics.text = text;
 
             menuObject.transform.SetParent(__instance.transform);

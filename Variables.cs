@@ -10,7 +10,7 @@ namespace ReplayMod
         public static Il2CppSystem.Collections.Generic.Dictionary<ulong, PlayerManager> activePlayers = null;
         public static Dictionary<string, System.Func<string>> DebugDataCallbacks;
         public static Camera camera;
-        public static DateTime startGame, fixMapTimeStamp, lastRecordTime;
+        public static DateTime startGame, startGameMedal, fixMapTimeStamp, lastRecordTime, lastRecordTimeMedal;
 
         //Manager
         public static GameManager gameManager;
@@ -32,7 +32,7 @@ namespace ReplayMod
         //double[][]
 
         //string
-        public static string replayFileName, logData, clientName, otherPlayerName, clientCloneName, otherPlayerCloneName, checkingForceRecord;
+        public static string replayFileName, replayFileNameMedal, logData, clientName, otherPlayerName, clientCloneName, otherPlayerCloneName, checkingForceRecord, logDataMedal;
         public static readonly string mainFolderPath = "ReplayMod\\";
         public static string defaultFolderPath = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Crab Game\\";
         public static string minimapURL = "https://github.com/GibsonFR/ReplayMod/raw/main/ReplayMod/minimaps.zip";
@@ -51,8 +51,6 @@ namespace ReplayMod
 
         //ulong
         public static ulong clientId;
-
-        //double
 
         //float
         public static float otherPlayerSpeed;
@@ -73,6 +71,7 @@ namespace ReplayMod
         public static int replayMap = 100;
         public static int recordFPS = 30;
         public static int replayFPS = 30;
+        public static int recordLastSeconds = 30;
         public static int maxReplayFile = 10;
         public static int cinematicCloseHeight = 1;
         public static int cinematicFarHeight = 12;
@@ -87,35 +86,37 @@ namespace ReplayMod
 
 
         //boolean
-        public static bool cartography = false;
-        public static bool hasStick = false;
+        public static bool hasStick;
         public static bool gameEnded = true;
-        public static bool forceRecord = false;
-        public static bool replayStop = false;
-        public static bool minimapTrigger = false;
-        public static bool replayTrigger = false;
-        public static bool povTrigger = false;
-        public static bool cinematicTrigger = false;
-        public static bool isReplayReaderInitialized = false;
-        public static bool tagCloneSwitch = false;
-        public static bool replayEnded = false;
-        public static bool isMinimapLoaded = false;
-        public static bool fixedMinimap = false;
+        public static bool forceRecord;
+        public static bool replayStop;
+        public static bool minimapTrigger;
+        public static bool replayTrigger;
+        public static bool povTrigger;
+        public static bool cinematicTrigger;
+        public static bool isReplayReaderInitialized;
+        public static bool tagCloneSwitch;
+        public static bool replayEnded;
+        public static bool isMinimapLoaded;
+        public static bool fixedMinimap;
         public static bool clientCloneVisibility = true;
         public static bool otherPlayerCloneVisibility = true;
         public static bool replaySafeClose = true;
-        public static bool isForceRecord = false;
-        public static bool recording = false;
-        public static bool menuTrigger = false;
+        public static bool isForceRecord;
+        public static bool recording;
+        public static bool menuTrigger;
+        public static bool medalRecord;
 
-        //bool for Menu
-        public static bool onButton = false;
+        //Variables for menu
+        public static bool onButton;
         public static bool[] buttonStates;
         public static string displayButton0;
         public static string displayButton1;
         public static string displayButton2;
         public static string displayButton3;
         public static string displayButton4;
+        public static string displayButton5;
+        public static string displayButton6;
 
         //Vector3
         public static Vector3 initialMapPosition = Vector3.zero;

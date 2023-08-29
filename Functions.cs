@@ -1,99 +1,7 @@
-﻿using UnityEngine;
-
-namespace ReplayMod
+﻿namespace ReplayMod
 {
     public class Utility
     {
-        public static byte ConvertKeyToByte(string key)
-        {
-            Dictionary<string, byte> keyCodes = new Dictionary<string, byte>
-            {
-                {"A", 0x41},
-                {"B", 0x42},
-                {"C", 0x43},
-                {"D", 0x44},
-                {"E", 0x45},
-                {"F", 0x46},
-                {"G", 0x47},
-                {"H", 0x48},
-                {"I", 0x49},
-                {"J", 0x4A},
-                {"K", 0x4B},
-                {"L", 0x4C},
-                {"M", 0x4D},
-                {"N", 0x4E},
-                {"O", 0x4F},
-                {"P", 0x50},
-                {"Q", 0x51},
-                {"R", 0x52},
-                {"S", 0x53},
-                {"T", 0x54},
-                {"U", 0x55},
-                {"V", 0x56},
-                {"W", 0x57},
-                {"X", 0x58},
-                {"Y", 0x59},
-                {"Z", 0x5A},
-                { "0", 0x30 },
-                { "1", 0x31 },
-                { "2", 0x32 },
-                { "3", 0x33 },
-                { "4", 0x34 },
-                { "5", 0x35 },
-                { "6", 0x36 },
-                { "7", 0x37 },
-                { "8", 0x38 },
-                { "9", 0x39 },
-                { "F1", 0x70 },
-                { "F2", 0x71 },
-                { "F3", 0x72 },
-                { "F4", 0x73 },
-                { "F5", 0x74 },
-                { "F6", 0x75 },
-                { "F7", 0x76 },
-                { "F8", 0x77 },
-                { "F9", 0x78 },
-                { "F10", 0x79 },
-                { "F11", 0x7A },
-                { "F12", 0x7B },
-                { "Tab", 0x09 },
-                { "CapsLock", 0x14 },
-                { "Shift", 0x10 },
-                { "Ctrl", 0x11 },
-                { "Alt", 0x12 },
-                { "Esc", 0x1B },
-                { "Backspace", 0x08 },
-                { "Enter", 0x0D },
-                { "Space", 0x20 },
-                { "LeftArrow", 0x25 },
-                { "UpArrow", 0x26 },
-                { "RightArrow", 0x27 },
-                { "DownArrow", 0x28 },
-                { "Insert", 0x2D },
-                { "Delete", 0x2E },
-                { "Home", 0x24 },
-                { "End", 0x23 },
-                { "PageUp", 0x21 },
-                { "PageDown", 0x22 },
-                { "NumLock", 0x90 },
-                { "ScrollLock", 0x91 },
-                { "PrintScreen", 0x2C },
-                { "Pause", 0x13 },
-            };
-
-            if (keyCodes.ContainsKey(key))
-            {
-                return keyCodes[key];
-            }
-            else
-            {
-                throw new ArgumentException("Invalid key.");
-            }
-        }
-        public static long GetUnixTime()
-        {
-            return ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds();
-        }
         public static bool DoesFunctionCrash(Action function)
         {
             try
@@ -107,27 +15,6 @@ namespace ReplayMod
                 Debug.LogError($"Erreur : {ex.Message}");
                 return true;
             }
-        }
-        public static void PressKey(byte key)
-        {
-            [DllImport("user32.dll")]
-            static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-            const int KEYEVENTF_EXTENDEDKEY = 0x0001;
-            const int KEYEVENTF_KEYUP = 0x0002;
-            byte VK_KEY = key;
-
-            keybd_event(VK_KEY, 0, KEYEVENTF_EXTENDEDKEY, UIntPtr.Zero); // press the key
-            keybd_event(VK_KEY, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // release the key
-        }
-        public static string GetTimestamp(long endTime)
-        {
-            long actualTime = GetUnixTime();
-            long endingTime = endTime;
-
-            string timeLeft = ((endingTime - actualTime) / 60000).ToString();
-
-            return timeLeft;
         }
         public static async Task DownloadAndExtractZipAsync(string url, string downloadPath, string extractPath)
         {
@@ -209,9 +96,9 @@ namespace ReplayMod
 
             Dictionary<string, string> configDefaults = new Dictionary<string, string>
             {
-                {"version", "v0.1.5"},
-                {"recordFPS", "120"},
-                {"maxReplayFiles", "10"},
+                {"version", "v0.1.7"},
+                {"recordFPS", "60"},
+                {"maxReplayFiles", "25"},
                 {"posSmoothness", "0,1"},
                 {"rotSmoothness", "0,1"},
                 {"distFromPlayers", "0,8"},
@@ -219,11 +106,12 @@ namespace ReplayMod
                 {"cinematicFarHeight", "12"},
                 {"minimapSize", "5"},
                 {"customPrecisionFormatClientPosition", "F4"},
-                {"customPrecisionFormatClientRotation","F3"},
-                {"customPrecisionFormatTargetPosition", "F2"},
+                {"customPrecisionFormatClientRotation","F4"},
+                {"customPrecisionFormatTargetPosition", "F4"},
                 {"colorClient", "black"},
                 {"colorOtherPlayer", "white"},
-                {"defaultFolderPath","C:\\Program Files (x86)\\Steam\\steamapps\\common\\Crab Game\\"}
+                {"defaultFolderPath","C:\\Program Files (x86)\\Steam\\steamapps\\common\\Crab Game\\"},
+                {"recordLastSeconds","15"}
             };
 
             Dictionary<string, string> currentConfig = new Dictionary<string, string>();
@@ -300,6 +188,59 @@ namespace ReplayMod
             string logDataOld = Variables.logData;
             Variables.logData = logDataOld + "\n" + StringsArrayToCsvLine(stringArray);
         }
+        public static void LogAllDataForMedal(string filename, DateTime start)
+        {
+            int SECONDS_IN_MILLISECONDS = Variables.recordLastSeconds * 1000;
+            GameData.HasStickCheck();
+
+            string path = Variables.mainFolderPath + "replays\\" + filename + ";Recording(medal like).txt";
+
+            DateTime end = DateTime.Now;
+            TimeSpan ts = (end - start);
+
+            int timestamp = (int)ts.TotalMilliseconds;
+
+            string[] stringArray = new string[]
+            {
+                timestamp.ToString(),
+                ClientData.GetPlayerPositionAsString(),
+                "1",
+                ClientData.GetPlayerPositionAsString(),
+                ClientData.GetPlayerRotationAsString(),
+            };
+
+            string newLogData = StringsArrayToCsvLine(stringArray);
+
+            // Créons une nouvelle chaîne pour nos données
+            StringBuilder currentData = new StringBuilder();
+
+            // Ajoutez d'abord toutes les lignes pertinentes de Variables.logDataMedal
+            string[] previousLines = Variables.logDataMedal.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string line in previousLines)
+            {
+                if (!string.IsNullOrEmpty(line))
+                {
+                    int lineTimestamp;
+                    if (int.TryParse(line.Split(';')[0], out lineTimestamp))
+                    {
+                        if (timestamp - lineTimestamp <= SECONDS_IN_MILLISECONDS)
+                        {
+                            currentData.AppendLine(line);
+                        }
+                    }
+                }
+            }
+
+            // Ajoutez ensuite la nouvelle ligne à cette chaîne
+            currentData.AppendLine(newLogData);
+
+            // Réinitialisez le contenu de Variables.logDataMedal avec cette nouvelle chaîne
+            Variables.logDataMedal = currentData.ToString();
+
+            // Écrivez les nouvelles données dans le fichier
+            File.WriteAllText(path, Variables.logDataMedal);
+        }
+
         public static string DefaultFormatCsv(string originalString)
         {
             return originalString.Replace("(", "").Replace(")", "").Replace(" ", "").Replace(",", ";").Replace(".", ",");
@@ -325,55 +266,10 @@ namespace ReplayMod
 
             return result;
         }
-        public static float RandomFloat()
-        {
-
-            System.Random random = new System.Random();
-
-            // Générer un nombre aléatoire entre 0 et 1
-            float randomFloat = (float)(random.NextDouble() * 10 - 5);
-
-            return randomFloat;
-
-        }
-        public static int RandomInt()
-        {
-            System.Random random = new System.Random();
-
-            // Générer un entier aléatoire entre 0 et 30
-            int randomInt = random.Next(0, 10);
-
-            return randomInt;
-        }
-        public static void SendRandomMessage()
-        {
-            List<string> elements = new List<string> {
-                "Im a bot!",
-                "Welcome!",
-                };
-            System.Random rand = new System.Random();
-            int index = rand.Next(elements.Count);
-            ChatBox.Instance.SendMessage(elements[index]);
-        }
         public static void PlayMenuSound()
         {
             Variables.clientInventory.woshSfx.pitch = 5 * Variables.menuSpeed;
             Variables.clientInventory.woshSfx.Play();
-        }
-        public static void debugChat()
-        {
-            Variables.chatBox.overlay.color = Color.black;
-            Variables.chatBox.overlay.gameObject.transform.localScale = new Vector3(1.3f, 3f, 1);
-            Variables.chatBox.inputField.customCaretColor = true;
-            Variables.chatBox.inputField.caretColor = Color.green;
-            Variables.chatBox.inputField.caretWidth = 3;
-            Variables.chatBox.inputField.name = "GibsonBot Console";
-            Variables.chatBox.inputField.selectionColor = Color.white;
-            Variables.chatBox.inputField.gameObject.transform.localScale = new Vector3(0.5f, 0.3f, 0.3f);
-            Variables.chatBox.messages.fontSize = 5;
-            Variables.chatBox.messages.gameObject.transform.localScale = new Vector3(2.5f, 1f, 1f);
-            Variables.chatBox.messages.horizontalAlignment = TMPro.HorizontalAlignmentOptions.Center;
-            Variables.chatBox.messages.fontStyle = TMPro.FontStyles.Superscript;
         }
         public static Color GetColorFromString(string colorName)
         {
@@ -597,6 +493,10 @@ namespace ReplayMod
             parseSuccess = float.TryParse(config["minimapSize"], NumberStyles.Any, cultureInfo, out resultFloat);
             Variables.minimapSize = parseSuccess ? resultFloat / 100 : 0;
 
+            parseSuccess = int.TryParse(config["recordLastSeconds"], out resultInt);
+            Variables.recordLastSeconds = parseSuccess ? resultInt : 0;
+
+            Variables.defaultFolderPath = config["defaultFolderPath"];
             Variables.customPrecisionFormatClientPosition = config["customPrecisionFormatClientPosition"];
             Variables.customPrecisionFormatClientRotation = config["customPrecisionFormatClientRotation"];
             Variables.customPrecisionFormatTargetPosition = config["customPrecisionFormatTargetPosition"];
@@ -646,21 +546,28 @@ namespace ReplayMod
     }
     public class ClientData
     {
+        private static GameObject playerObject = null;
+        private static Camera mainCamera = null;
+
         public static ulong GetClientId()
         {
             return GetPlayerManager().steamProfile.m_SteamID;
         }
         public static GameObject GetPlayerObject()
         {
-            return GameObject.Find("/Player");
+            if (playerObject == null)
+            {
+                playerObject = GameObject.Find("/Player");
+            }
+            return playerObject;
         }
         public static PlayerManager GetPlayerManager()
         {
-            return GetPlayerObject().GetComponent<PlayerManager>();
+            return GetPlayerObject()?.GetComponent<PlayerManager>();
         }
         public static Rigidbody GetPlayerBody()
         {
-            return GameObject.Find("/Player") == null ? null : GameObject.Find("/Player").GetComponent<Rigidbody>();
+            return GetPlayerObject()?.GetComponent<Rigidbody>();
         }
         public static Rigidbody GetPlayerBodySafe()
         {
@@ -672,11 +579,16 @@ namespace ReplayMod
         }
         public static string GetPlayerUsernameAsString()
         {
-            return GetPlayerManager() == null ? "Player's name is unknown" : GetPlayerManager().username.ToString();
+            var playerManager = GetPlayerManager();
+            return playerManager == null ? "Player's name is unknown" : playerManager.username;
         }
         public static Camera GetCamera()
         {
-            return UnityEngine.Object.FindObjectOfType<Camera>();
+            if (mainCamera == null)
+            {
+                mainCamera = UnityEngine.Object.FindObjectOfType<Camera>();
+            }
+            return mainCamera;
         }
         public static Vector3? GetPlayerRotation()
         {
@@ -685,19 +597,12 @@ namespace ReplayMod
         public static string GetPlayerRotationAsString()
         {
             Vector3? rotation = GetPlayerRotation();
-
-            return !rotation.HasValue ? "ERROR" : rotation.Value.ToString(Variables.customPrecisionFormatClientRotation);
+            return rotation.HasValue ? rotation.Value.ToString(Variables.customPrecisionFormatClientRotation) : "ERROR";
         }
         public static string GetPlayerPositionAsString()
         {
-            return GetPlayerBodySafe() == null ? "0.00" : GetPlayerBodySafe().transform.position.ToString(Variables.customPrecisionFormatClientPosition);
-        }
-        public static string GetPlayerSpeedAsString()
-        {
-            Vector3 velocity = Vector3.zero;
-            if (GetPlayerBodySafe() != null)
-                velocity = new UnityEngine.Vector3(GetPlayerBodySafe().velocity.x, 0f, GetPlayerBodySafe().velocity.z);
-            return velocity.magnitude.ToString("0.00");
+            var playerBodySafe = GetPlayerBodySafe();
+            return playerBodySafe == null ? "0.00" : playerBodySafe.transform.position.ToString(Variables.customPrecisionFormatClientPosition);
         }
         public static string GetIsTaggedAsString()
         {
@@ -707,97 +612,69 @@ namespace ReplayMod
 
     public class MultiplayerData
     {
+        private static System.Random random = new System.Random();
+
         public static int FindEnemies()
         {
             Variables.gameManager = GameObject.Find("/GameManager (1)").GetComponent<GameManager>();
-            int u = -1; // Initialiser u à -1 pour commencer
+            var activePlayersList = Variables.gameManager.activePlayers.entries.ToList();
+            int u;
 
-            while (u == -1 || Variables.gameManager.activePlayers.entries.ToList()[u].value.username == ClientData.GetPlayerUsernameAsString() || Variables.gameManager.activePlayers.entries.ToList()[u].value.dead)
+            do
             {
-                u = new System.Random().Next(0, Variables.gameManager.activePlayers.count); // Choisir un nombre aléatoire entre 0 et le nombre de joueurs actifs
-
-                if (Variables.gameManager.activePlayers.entries.ToList()[u].value.username != ClientData.GetPlayerUsernameAsString() && !Variables.gameManager.activePlayers.entries.ToList()[u].value.dead)
-                {
-                    Variables.clientPlayerId = u;
-                    return u;
-                }
+                u = random.Next(0, Variables.gameManager.activePlayers.count);
             }
+            while (activePlayersList[u].value.username == ClientData.GetPlayerUsernameAsString() || activePlayersList[u].value.dead);
+
+            Variables.clientPlayerId = u;
             return u;
         }
         public static Rigidbody GetOtherPlayerBody(int selector)
         {
+            var activePlayersList = Variables.gameManager.activePlayers.entries.ToList();
             Rigidbody rb = null;
+            bool result = Utility.DoesFunctionCrash(() => activePlayersList[selector].value.GetComponent<Rigidbody>());
 
-            bool result = Utility.DoesFunctionCrash(() =>
+            if (!result)
             {
-                Variables.gameManager.activePlayers.entries.ToList()[selector].value.GetComponent<Rigidbody>();
-            });
-
-            if (result)
-            {
-                rb = null;
-            }
-            else
-            {
-                rb = Variables.gameManager.activePlayers.entries.ToList()[selector].value.GetComponent<Rigidbody>();
+                rb = activePlayersList[selector].value.GetComponent<Rigidbody>();
             }
 
             return rb;
         }
         public static string GetOtherPlayerUsername(int selector)
         {
-            return GetOtherPlayerBody(selector) == null ? "<color=red>N/A</color>" : Variables.gameManager.activePlayers.entries.ToList()[selector].value.username.ToString();
-        }
-        public static UnityEngine.Vector3 GetOtherPlayerPosition(int selector)
-        {
-            return GetOtherPlayerBody(selector) == null ? Vector3.zero : new Vector3(GetOtherPlayerBody(selector).position.x, GetOtherPlayerBody(selector).position.y, GetOtherPlayerBody(selector).position.z);
+            var activePlayersList = Variables.gameManager.activePlayers.entries.ToList();
+            var otherPlayerBody = GetOtherPlayerBody(selector);
+
+            return otherPlayerBody == null ? "<color=red>N/A</color>" : activePlayersList[selector].value.username;
         }
         public static string GetOtherPlayerPositionAsString(int selector)
         {
-            return GetOtherPlayerBody(selector) == null ? Vector3.zero.ToString(Variables.customPrecisionFormatTargetPosition) : new Vector3(GetOtherPlayerBody(selector).position.x, GetOtherPlayerBody(selector).position.y, GetOtherPlayerBody(selector).position.z).ToString(Variables.customPrecisionFormatTargetPosition);
+            var otherPlayerBody = GetOtherPlayerBody(selector);
+
+            return otherPlayerBody == null
+                ? Vector3.zero.ToString(Variables.customPrecisionFormatTargetPosition)
+                : otherPlayerBody.position.ToString(Variables.customPrecisionFormatTargetPosition);
         }
     }
-
-
     public class GameData
     {
         public static void HasStickCheck()
         {
             bool result = Utility.DoesFunctionCrash(() =>
             {
-                if (PlayerInventory.Instance.currentItem.name == "Stick(Clone)") ;
+                if (PlayerInventory.Instance.currentItem.name == "Stick(Clone)")
+                {
+                    // Do something if the condition is true
+                }
             });
 
-            if (result)
-            {
-                if (Variables.hasStick)
-                {
-                    Variables.hasStick = false;
-                }
-            }
-            else
-            {
-                if (!Variables.hasStick)
-                {
-                    Variables.hasStick = true;
-                }
-            }
+            Variables.hasStick = !result;
         }
         public static LobbyManager GetLobbyManager()
         {
             return LobbyManager.Instance;
-        }
-        public static string GetGameModeNameAsString()
-        {
-            return UnityEngine.Object.FindObjectOfType<LobbyManager>().gameMode.modeName.ToString();
-        }
-        public static string GetGameModeIdAsString()
-        {
-            return GetLobbyManager().gameMode.id.ToString();
-        }
-        public static int GetCurrentGameTimer()
-        {
-            return (UnityEngine.Object.FindObjectOfType<TimerUI>().field_Private_TimeSpan_0.Seconds + 1 + UnityEngine.Object.FindObjectOfType<TimerUI>().field_Private_TimeSpan_0.Minutes * 60 + UnityEngine.Object.FindObjectOfType<TimerUI>().field_Private_TimeSpan_0.Hours * 3600);
         }
         public static int GetMapId()
         {
@@ -807,24 +684,13 @@ namespace ReplayMod
         {
             return GetLobbyManager().gameMode.id;
         }
-        public static int GetPlayersAlive()
-        {
-            if (GameManager.Instance != null)
-            {
-                return GameManager.Instance.GetPlayersAlive();
-            }
-            else
-            {
-                return 0;
-            }
-        }
         public static string GetGameStateAsString()
         {
-            return UnityEngine.Object.FindObjectOfType<GameManager>()?.gameMode.modeState.ToString();
+            return GameManager.Instance?.gameMode.modeState.ToString();
         }
     }
 
-    public class ReplayControllerFunctions
+    public class ReplayFunctions
     {
         public static Vector3 ParseVector3(string[] info, int startIndex)
         {
@@ -968,9 +834,9 @@ namespace ReplayMod
                             string[] info = line.Split(',');
 
                             string name = info[0];
-                            Vector3 position = ReplayControllerFunctions.ParseVector3(info, 1);
-                            Vector3 scale = ReplayControllerFunctions.ParseVector3(info, 4);
-                            Quaternion rotation = ReplayControllerFunctions.ParseQuaternion(info, 8);
+                            Vector3 position = ReplayFunctions.ParseVector3(info, 1);
+                            Vector3 scale = ReplayFunctions.ParseVector3(info, 4);
+                            Quaternion rotation = ReplayFunctions.ParseQuaternion(info, 8);
 
                             string objPath = Variables.defaultFolderPath + "ReplayMod\\minimaps\\mapsObjects\\" + Variables.replayMap.ToString() + "\\" + name + ".obj";
                             GameObject newObj = new OBJLoader().Load(objPath, null);
@@ -1144,7 +1010,7 @@ namespace ReplayMod
             Variables.replayDate = 0;
             Variables.replayMap = 100;
 
-            if ((Variables.cinematicTrigger || Variables.povTrigger) && !Variables.replayStop && GameData.GetGameModeIdAsString() == "13")
+            if ((Variables.cinematicTrigger || Variables.povTrigger) && !Variables.replayStop && GameData.GetGameModId().ToString() == "13")
             {
                 Variables.clientBody.transform.position = Variables.initialMapPosition;
             }
@@ -1218,7 +1084,7 @@ namespace ReplayMod
             rb.isKinematic = true;
 
             // Create and configure the player's body
-            GameObject body = CreatePlayerComponent(player, PrimitiveType.Capsule, "Body", bodyColor, new Vector3(1.2f, 1.5f, 1.2f));
+            CreatePlayerComponent(player, PrimitiveType.Capsule, "Body", bodyColor, new Vector3(1.2f, 1.5f, 1.2f));
 
             // Create and configure the player's head
             GameObject head = CreatePlayerComponent(player, PrimitiveType.Sphere, "Head", headColor, new Vector3(1.2f, 1.2f, 1.2f), new Vector3(0f, 2.2f, 0f));
@@ -1265,23 +1131,9 @@ namespace ReplayMod
 
             return label;
         }
-        public static void HandleClientBody()
-        {
-            if (!Variables.minimap)
-            {
-                Variables.minimap = GameObject.Find("Carte") ?? new GameObject("Carte");
-            }
-
-            if (Variables.replayTrigger && Variables.mapId == Variables.replayMap && Variables.gamemodeId == 13 &&
-                (Variables.cinematicTrigger || Variables.povTrigger))
-            {
-                Variables.clientBody.useGravity = false;
-                Variables.clientBody.isKinematic = true;
-            }
-        }
     }
 
-    public class RecordControllerFunctions
+    public class RecordFunctions
     {
         public static void HandleForceRecord()
         {
@@ -1337,6 +1189,26 @@ namespace ReplayMod
 
             Variables.lastRecordTime = DateTime.Now;
         }
+        public static void InitRecordMedal(string first, string second)
+        {
+            Variables.startGameMedal = DateTime.Now;
+            long startGameTimeMilliseconds = new DateTimeOffset(Variables.startGameMedal).ToUnixTimeMilliseconds();
+            string[] filenameArray =
+            {
+                    first,
+                    second,
+                    startGameTimeMilliseconds.ToString(),
+                    GameData.GetMapId().ToString(),
+                    Variables.recordFPS.ToString(),
+                };
+            Variables.replayFileNameMedal = Utility.StringsArrayToCsvLine(filenameArray);
+            Variables.logDataMedal = "";
+
+            CreateDirectoryIfNotExists(Variables.mainFolderPath + "replays\\");
+            CleanDirectory(Variables.mainFolderPath + "replays\\", Variables.maxReplayFile);
+
+            Variables.lastRecordTimeMedal = DateTime.Now;
+        }
         public static void CreateDirectoryIfNotExists(string directory)
         {
             if (!System.IO.Directory.Exists(directory))
@@ -1357,11 +1229,20 @@ namespace ReplayMod
         }
         public static void RenameFile()
         {
-            string sourceFile = Variables.mainFolderPath + "replays\\" + Variables.replayFileName + ";Recording.txt";
+            string sourceFile = Variables.mainFolderPath + "replays\\" + Variables.replayFileNameMedal + ";Recording.txt";
             System.IO.FileInfo fi = new System.IO.FileInfo(sourceFile);
             if (fi.Exists)
             {
                 fi.MoveTo(Variables.mainFolderPath + "replays\\" + Variables.replayFileName + ".txt");
+            }
+        }
+        public static void RenameFileMedal()
+        {
+            string sourceFile = Variables.mainFolderPath + "replays\\" + Variables.replayFileNameMedal + ";Recording(medal like).txt";
+            System.IO.FileInfo fi = new System.IO.FileInfo(sourceFile);
+            if (fi.Exists)
+            {
+                fi.MoveTo(Variables.mainFolderPath + "replays\\" + Variables.replayFileNameMedal + ";ml" + Variables.recordLastSeconds.ToString() + ".txt");
             }
         }
         public static void EndGame()
@@ -1375,13 +1256,64 @@ namespace ReplayMod
             Variables.gameEnded = true;
         }
     }
+    public class TxtProcessor
+    {
+        public static void RemoveUselessLine(string cheminFichier)
+        {
+            var lignes = File.ReadAllLines(cheminFichier);
+            var lignesAConserver = new List<string>();
 
+            if (lignes.Length < 1)
+            {
+                Console.WriteLine("Le fichier est vide.");
+                return;
+            }
+
+            // Ajouter la première ligne
+            lignesAConserver.Add(lignes[0]);
+
+            // Parcourir chaque ligne pour vérifier si elle est identique à la ligne précédente
+            for (int i = 1; i < lignes.Length; i++)
+            {
+                var ligneActuelle = lignes[i].Split(';');
+                var lignePrecedente = lignes[i - 1].Split(';');
+
+                if (ligneActuelle[1] != lignePrecedente[1] || ligneActuelle[2] != lignePrecedente[2] || ligneActuelle[3] != lignePrecedente[3])
+                {
+                    lignesAConserver.Add(lignes[i]);
+                }
+            }
+
+            // Écrire les lignes à conserver dans le fichier
+            File.WriteAllLines(cheminFichier, lignesAConserver);
+            Console.WriteLine("Lignes identiques supprimées avec succès !");
+        }
+        public static void RenameFile(string cheminFichier, string techName)
+        {
+            var lignes = File.ReadAllLines(cheminFichier);
+
+            if (lignes.Length < 1)
+            {
+                Console.WriteLine("Le fichier est vide.");
+                return;
+            }
+
+            var premiereLigne = lignes[0].Split(';');
+            var derniereLigne = lignes[^1].Split(';');
+
+            var nouvelleNom = $"{premiereLigne[1]};{premiereLigne[2]};{premiereLigne[3]};{techName};{derniereLigne[1]};{derniereLigne[2]};{derniereLigne[3]}.txt";
+
+            var dossier = Path.GetDirectoryName(cheminFichier);
+            var nouveauChemin = Path.Combine(dossier, nouvelleNom);
+
+            File.Move(cheminFichier, nouveauChemin);
+
+            Console.WriteLine($"Fichier renommé en {nouvelleNom} !");
+        }
+
+    }
     public class MenuFunctions
     {
-        public static void RegisterDataCallback(string s, System.Func<string> f)
-        {
-            Variables.DebugDataCallbacks.Add(s, f);
-        }
         public static void RegisterDataCallbacks(System.Collections.Generic.Dictionary<string, System.Func<string>> dict)
         {
             foreach (System.Collections.Generic.KeyValuePair<string, System.Func<string>> pair in dict)
@@ -1391,9 +1323,22 @@ namespace ReplayMod
         }
         public static void CheckMenuFileExists()
         {
-            if (!System.IO.File.Exists(Variables.menuPath))
+            string menuContent = "\t\r\n\tReplay ID selected  : [REPLAYFILE]  |  Replay speed : [REPLAYSPEED]  |  View : [VIEWMODE]  |  Map : [MAP]  |  Date : [DATE]  | Replay State : [REPLAYSTATUS]\r\n\r\n\r\n\t______________________________________________________________________\r\n\r\n<b>\r\n\r\n\t[MENUBUTTON0]\r\n\r\n\r\n\r\n\t[MENUBUTTON1]\r\n\r\n\r\n\r\n\t[MENUBUTTON2]\r\n\r\n\r\n\r\n\t[MENUBUTTON3]\r\n\r\n\r\n\r\n\t[MENUBUTTON4]\r\n\r\n\t\r\n\r\n\t[MENUBUTTON5]\r\n\r\n\r\n\r\n\t[MENUBUTTON6]\r\n\r\n</b>";
+
+            if (System.IO.File.Exists(Variables.menuPath))
             {
-                System.IO.File.WriteAllText(Variables.menuPath, "\t\r\n\tReplay ID selected  : [REPLAYFILE]  |  Replay speed : [REPLAYSPEED]  |  View : [VIEWMODE]  |  Map : [MAP]  |  Date : [DATE]  | Replay State : [REPLAYSTATUS]\r\n\r\n\r\n\t______________________________________________________________________\r\n\r\n<b>\r\n\r\n\t[MENUBUTTON0]\r\n\r\n\r\n\r\n\t[MENUBUTTON1]\r\n\r\n\r\n\r\n\t[MENUBUTTON2]\r\n\r\n\r\n\r\n\t[MENUBUTTON3]\r\n\r\n\r\n\r\n\t[MENUBUTTON4]\r\n\r\n</b>", System.Text.Encoding.UTF8);
+                string currentContent = System.IO.File.ReadAllText(Variables.menuPath, System.Text.Encoding.UTF8);
+
+                
+                if (currentContent != menuContent) 
+                {
+                    System.IO.File.WriteAllText(Variables.menuPath, menuContent, System.Text.Encoding.UTF8);
+                }
+            }
+            else
+            {
+                // Si le fichier n'existe pas, créez-le avec le contenu fourni
+                System.IO.File.WriteAllText(Variables.menuPath, menuContent, System.Text.Encoding.UTF8);
             }
             if (!System.IO.File.Exists(Variables.mapNamePath))
             {
@@ -1429,6 +1374,8 @@ namespace ReplayMod
                 {"MENUBUTTON2",() => Variables.displayButton2},
                 {"MENUBUTTON3",() => Variables.displayButton3},
                 {"MENUBUTTON4",() => Variables.displayButton4},
+                {"MENUBUTTON5",() => Variables.displayButton5},
+                {"MENUBUTTON6",() => Variables.displayButton6},
             });
         }
         public static string FormatLayout()
@@ -1580,10 +1527,19 @@ namespace ReplayMod
         }
         public static string GetForceRecordState()
         {
-            if (Variables.menuSelector == 3 && Variables.onButton) 
+            if (Variables.menuSelector == 3 && Variables.onButton)
                 return "<b><color=red>ON</color></b>";
             else if (Variables.menuSelector == 3)
                 return "<b><color=blue>OFF</color></b>";
+            return "";
+
+        }
+        public static string GetMedalRecordState()
+        {
+            if (Variables.menuSelector == 6 && Variables.onButton)
+                return "<b><color=red>ON</color> | " + Variables.recordLastSeconds + " seconds</b>";
+            else if (Variables.menuSelector == 6)
+                return "<b><color=blue>OFF</color> | " + Variables.recordLastSeconds + " seconds</b>";
             return "";
 
         }
@@ -1622,6 +1578,25 @@ namespace ReplayMod
                     case (4, -1):
                         Variables.chatBox.ForceMessage("■<color=black>Replay Stopped</color>■");
                         Variables.replayStop = true;
+                        break;
+                    case (5, -1):
+                        Variables.chatBox.ForceMessage("■<color=black>File formated</color>■");
+                        DirectoryInfo directory = new DirectoryInfo(Variables.mainFolderPath + "replays\\");
+                        FileInfo[] files = directory.GetFiles("*.txt");
+
+                        Array.Sort(files, (x, y) => y.LastWriteTime.CompareTo(x.LastWriteTime));
+
+                        int fileIndexToRead = Variables.replayFile;
+                        string fileName = files[fileIndexToRead].Name;
+
+                        string filePath = Variables.mainFolderPath + "replays\\" + fileName;
+                        TxtProcessor.RemoveUselessLine(filePath);
+                        TxtProcessor.RenameFile(filePath, "TechName");
+                        break;
+                    case (6, -1):
+                        Variables.medalRecord = true;
+                        string message1 = "■<color=yellow>MedalRecord mode ON</color>■";
+                        Variables.chatBox.ForceMessage(message1);
                         break;
                 }
             }
@@ -1690,6 +1665,13 @@ namespace ReplayMod
                         string message = "■<color=black>ForceRecord mode OFF</color>■";
                         Variables.chatBox.ForceMessage(message);
                         break;
+                    case (6, -1):
+                        Variables.medalRecord = false;
+
+                        string message1 = "■<color=black>MedalRecord mode OFF</color>■";
+                        Variables.chatBox.ForceMessage(message1);
+                        break;
+
                 }
                 Variables.subMenuSelector = -1;
             }
